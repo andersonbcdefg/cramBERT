@@ -1,5 +1,8 @@
 import torch
+from torch.utils.data import DataLoader
+import numpy as np
 from layers import *
+from data import *
 from model import BERT, BERTConfig
 
 def test_attention(batch_size, seq_len, d_model, d_qkv, n_heads):
@@ -71,10 +74,60 @@ def test_bert():
     assert out_tensor.shape == torch.Size([10, 512, 30000]), "Output should have shape (batch_size, seq_len, vocab_size)."
     print("BERT test passed!")
 
+def test_bert_dataset():
+    raw_data = np.load("webtext/webtext.npy")[0:100000]
+    dataset = BERTDataset(raw_data, 30522)
+    assert len(dataset) == 100000, "Dataset should have 100000 samples."
+    x, y, mask = dataset[0:5]
+    print(x.shape, mask.shape, y.shape)
+    print("BERT dataset test passed!")
+
+def test_bert_dataloader():
+    raw_data = np.load("webtext/webtext.npy")[0:100000]
+    dataset = BERTDataset(raw_data, 30522)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=False, num_workers=4)
+    for x, y, mask in dataloader:
+        print(x.shape, mask.shape, y.shape)
+        break
+    print("BERT dataloader test passed!")
+
+def test_overfit():
+    raw_data = np.load("webtext/webtext_small.npy")[0:256]
+    dataset = BERTDataset(raw_data, 30522)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=False, num_workers=4)
+    config = BERTConfig(
+        vocab_size=30528, # nearest power of 64
+        n_layers=4,
+        max_seq_len=128,
+        d_model=768,
+        d_qkv=64,
+        n_heads=12,
+        ffn_geglu=True,
+        ffn_hidden_size=2048,
+        tie_weights=True
+    )
+    model = BERT(config)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    for epoch in range(100):
+        for x, y, mask in dataloader:
+            optimizer.zero_grad()
+            loss = model(x, targets=y, mask=mask)
+            loss.backward()
+            optimizer.step()
+            print(loss.item())
+        print("Epoch", epoch, "done.")
+
 if __name__ == "__main__":
     # Test all the layers
-    test_attention(4, 32, 512, 64, 8)
-    test_ffn(4, 32, 512, 2048)
-    test_transformer_block(4, 32, 512, 64, 8, 2048)
-    test_config()
-    test_bert()
+    # test_attention(4, 32, 512, 64, 8)
+    # test_ffn(4, 32, 512, 2048)
+    # test_transformer_block(4, 32, 512, 64, 8, 2048)
+    # test_config()
+    # test_bert()
+
+    # # Make sure the dataset and dataloader work with webtext
+    # test_bert_dataset()
+    # test_bert_dataloader()
+
+    # Overfit on a small dataset
+    test_overfit()

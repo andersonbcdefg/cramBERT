@@ -2,7 +2,9 @@ import yaml
 from dataclasses import dataclass
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from layers import TransformerBlock
+# TODO: add dropout for finetuning
 
 @dataclass
 class BERTConfig:
@@ -27,6 +29,7 @@ class BERTConfig:
 class BERT(nn.Module):
     def __init__(self, config: BERTConfig):
         super().__init__()
+        self.vocab_size = config.vocab_size
         self.d_model = config.d_model
         self.max_seq_len = config.max_seq_len
         self.token_emb = nn.Embedding(config.vocab_size, config.d_model)
@@ -52,26 +55,44 @@ class BERT(nn.Module):
         if config.tie_weights:
             n_params -= self.fc.weight.numel()
         print("Number of parameters: ~%.0fM" % (n_params/1e6,))
+        self.apply(self._init_weights)
 
     @classmethod
     def from_pretrained(cls, name):
         raise NotImplementedError
+
+    # Borrowed from nanoGPT
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+        elif isinstance(module, (nn.LayerNorm)):
+            torch.nn.init.ones_(module.weight)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
         
 
-    def forward(self, X, targets=None):
-        print(X.shape)
+    def forward(self, X, targets=None, mask=None):
         token_embs = self.token_emb(X)
         pos_embs = self.pos_emb[:, :X.shape[1], :]
-        print("Token:", token_embs.shape)
-        print("Pos:", pos_embs.shape)
         X = self.token_emb(X) + self.pos_emb[:, :X.shape[1], :]
         for block in self.blocks:
             X = block(X)
-        out = self.fc(self.ln(X))
+        logits = self.fc(self.ln(X))
         if targets is not None:
-            return F.cross_entropy(out, targets)
+            if mask is None:
+                raise ValueError("Mask is required when targets are provided.")
+            targets.masked_fill_(~mask, -100)
+            # what's the loss for totally uniform predictions?
+            # uniform = torch.full(logits.shape, 1/self.vocab_size, device=logits.device)
+            # logits = logits * 0.0000001 + uniform * 0.9999999
+            loss = F.cross_entropy(
+                torch.flatten(logits, start_dim=0, end_dim=1), 
+                torch.flatten(targets)
+            )
+            return loss
         else:
-            return out
-
-def test():
-    model = BERT(30000, 12, 512, 768, 64, 12, 2048)
+            return logits

@@ -1,4 +1,4 @@
-vocab_size: 30000
+vocab_size: 30522
 n_layers: 12
 max_seq_len: 512
 d_model: 768

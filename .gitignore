@@ -1,3 +1,9 @@
+# Large data files
+*jsonl.zst
+*.tar
+*.npy
+*.pkl
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
