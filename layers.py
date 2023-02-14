@@ -2,10 +2,24 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# Adapted from Andrej Karpathy's "nanoGPT"
+class LayerNorm(nn.Module):
+    """ LayerNorm but with an optional weight & bias. PyTorch doesn't support simply bias=False,
+    this module allows both, neither, or just one of [weight, bias]. """
+
+    def __init__(self, d_model, weight=True, bias=False):
+        super().__init__()
+        self.d_model = d_model
+        self.weight = nn.Parameter(torch.ones(d_model)) if weight else None
+        self.bias = nn.Parameter(torch.zeros(d_model)) if bias else None
+
+    def forward(self, input):
+        return F.layer_norm(input, (self.d_model,), self.weight, self.bias, 1e-5)
+
 class PreNormAndAdd(nn.Module):
     def __init__(self, d_model, sublayer):
         super().__init__()
-        self.norm = nn.LayerNorm(d_model)
+        self.norm = LayerNorm(d_model, bias=False)
         self.sublayer = sublayer
     
     def forward(self, X):

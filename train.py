@@ -95,6 +95,7 @@ def train_bert(bert_config, train_config):
 
     # training loop
     torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
+    # make sure to use optimizer.zero_grad with set_to_none=True
     
 
 if __name__ == '__main__':

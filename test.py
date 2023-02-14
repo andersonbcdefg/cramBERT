@@ -74,30 +74,35 @@ def test_bert():
     assert out_tensor.shape == torch.Size([10, 512, 30000]), "Output should have shape (batch_size, seq_len, vocab_size)."
     print("BERT test passed!")
 
+def test_filter_and_batch_encode():
+    tokenizer = train_or_load_tokenizer(file_path="webtext/tokenizer.json")
+    it = webtext_batch_iterator()
+    documents = next(it)
+    filtered = filter_and_batch_encode(documents, tokenizer)
+    print("Original documents: ", len(documents))
+    print("Filtered documents: ", len(filtered))
+
 def test_bert_dataset():
-    raw_data = np.load("webtext/webtext.npy")[0:100000]
-    dataset = BERTDataset(raw_data, 30522)
-    assert len(dataset) == 100000, "Dataset should have 100000 samples."
-    x, y, mask = dataset[0:5]
+    dataset = BERTDataset("webtext/webtext_train.bin", 32768, 128, 1)
+    x, y, mask = next(iter(dataset))
     print(x.shape, mask.shape, y.shape)
     print("BERT dataset test passed!")
 
 def test_bert_dataloader():
-    raw_data = np.load("webtext/webtext.npy")[0:100000]
-    dataset = BERTDataset(raw_data, 30522)
-    dataloader = DataLoader(dataset, batch_size=32, shuffle=False, num_workers=4)
+    dataset = BERTDataset("webtext/webtext_train.bin", 32768, 128, 1)
+    dataloader = DataLoader(dataset, batch_size=64, shuffle=False, num_workers=4)
     for x, y, mask in dataloader:
         print(x.shape, mask.shape, y.shape)
         break
     print("BERT dataloader test passed!")
 
-def test_overfit():
-    raw_data = np.load("webtext/webtext_small.npy")[0:256]
-    dataset = BERTDataset(raw_data, 30522)
-    dataloader = DataLoader(dataset, batch_size=32, shuffle=False, num_workers=4)
+def test_overfit(max_steps):
+    print("Overfitting 128 sequences (static masks) in 1000 steps...")
+    dataset = BERTDataset("webtext/webtext_val.bin", 32768, 128, 1, max_seqs=128)
+    dataloader = DataLoader(dataset, batch_size=16, shuffle=False, num_workers=0)
     config = BERTConfig(
-        vocab_size=30528, # nearest power of 64
-        n_layers=4,
+        vocab_size=32768,
+        n_layers=6,
         max_seq_len=128,
         d_model=768,
         d_qkv=64,
@@ -107,15 +112,34 @@ def test_overfit():
         tie_weights=True
     )
     model = BERT(config)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-    for epoch in range(100):
-        for x, y, mask in dataloader:
-            optimizer.zero_grad()
-            loss = model(x, targets=y, mask=mask)
-            loss.backward()
-            optimizer.step()
-            print(loss.item())
-        print("Epoch", epoch, "done.")
+    optimizer = torch.optim.Adam(model.parameters())
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=1e-3, total_steps=max_steps, pct_start=0.33, 
+                                div_factor=10000, final_div_factor=25000, anneal_strategy="linear")
+    step = 0
+    static_batches = []
+    for x, y, mask in dataloader:
+        step += 1
+        optimizer.zero_grad()
+        loss = model(x, targets=y, mask=mask)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
+        optimizer.step()
+        scheduler.step()
+        print(f"Step {step} | Loss: {round(loss.item(), 3)}")
+        static_batches.append((x, y, mask))
+        if step >= 8:
+            break
+    print("Re-using first 8 batches to overfit, avoiding dynamic masking.")
+    while step < max_steps:
+        step += 1
+        optimizer.zero_grad()
+        x, y, mask = static_batches[step % 8]
+        loss = model(x, targets=y, mask=mask)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
+        optimizer.step()
+        scheduler.step()
+        print(f"Step {step} | Loss: {round(loss.item(), 3)}")
 
 if __name__ == "__main__":
     # Test all the layers

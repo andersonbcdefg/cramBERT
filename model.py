@@ -61,7 +61,7 @@ class BERT(nn.Module):
     def from_pretrained(cls, name):
         raise NotImplementedError
 
-    # Borrowed from nanoGPT
+    # Borrowed from nanoGPT -- any modifications?? 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
@@ -73,6 +73,7 @@ class BERT(nn.Module):
             torch.nn.init.ones_(module.weight)
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
+        # make sure we init the weights of the position embeddings
         
 
     def forward(self, X, targets=None, mask=None):
