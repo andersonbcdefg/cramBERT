@@ -1,0 +1,35 @@
+# training budget
+max_train_seqs: 78023355 # max number of training samples to use
+gpus: 0 # number of gpus to use
+train_workers: 4 # number of workers for train_dataloader
+
+# data
+train_path: "webtext/webtext_train.bin"
+val_path: "webtext/webtext_val.bin"
+mask_token_id: 1 # id of mask token in vocab
+vocab_size: 32768 # vocab size for data/tokenizer
+micro_batch_size: 128 # 128 or 256 whatever fits in memory
+max_batch_size: 4096 # recommended 4096
+anneal_batch_size: True # whether to anneal batch size
+batch_size_anneal_frac: 0.3 # what fraction of training examples to use for annealing
+
+# one-cycle lr schedule
+pct_start: 0.5
+max_lr: 1.0e-3
+start_div_factor: 1.0e+4
+end_div_factor: 2.5e+4
+
+# optimizer
+optimizer: AdamW
+b1: 0.9
+b2: 0.98
+weight_decay: 1.0e-2
+max_grad_norm: 0.5
+fused: False
+
+# logging, eval, & checkpointing
+use_wandb: True
+log_interval: 25
+val_interval: 1000
+save_interval: 1000
+save_dir: "models/"

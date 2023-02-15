@@ -249,21 +249,6 @@ class BERTDataset(torch.utils.data.IterableDataset):
             print(f"Worker {worker_id} assigned sequences {iter_start} to {iter_end}")
         return iter(self.mmap_iterator(iter_start, iter_end))
 
-
-    # def __len__(self):
-    #     return len(self.targets)
-
-    # def __getitem__(self, idx):
-    #     targets = self.targets[idx]
-    #     inputs, mask = get_masked_tokens(targets, self.vocab_size, self.mask_token_id, 
-    #         mask_prob=self.mask_prob, random_prob=self.random_prob, orig_prob=self.orig_prob)
-
-    #     return (
-    #         torch.LongTensor(inputs.astype(np.int64)), 
-    #         torch.LongTensor(targets.astype(np.int64)), 
-    #         torch.BoolTensor(mask.astype(np.bool))
-    #     )
-
 if __name__ == "__main__":
     download_webtext()
     load_and_prep_webtext(train_tokens=10 * BILLION)

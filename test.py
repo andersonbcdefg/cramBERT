@@ -1,3 +1,4 @@
+import wandb
 import torch
 from torch.utils.data import DataLoader
 import numpy as np
@@ -40,7 +41,7 @@ def test_transformer_block(batch_size, seq_len, d_model, d_qkv, n_heads, ffn_hid
 
 def test_config():
     config = BERTConfig(
-        vocab_size=30000,
+        vocab_size=32768,
         n_layers=12,
         max_seq_len=512,
         d_model=768,
@@ -56,7 +57,7 @@ def test_config():
 
 def test_bert():
     config = BERTConfig(
-        vocab_size=30000,
+        vocab_size=32768,
         n_layers=12,
         max_seq_len=512,
         d_model=768,
@@ -67,11 +68,11 @@ def test_bert():
         tie_weights=True
     )
     model = BERT(config)
-    print("Successfully created BERT model.")
-    # vocab size 30000, seq len 512, batch size 10
-    in_tensor = torch.randint(0, 30000, (10, 512))
+    model.get_decay_params()
+    in_tensor = torch.randint(0, config.vocab_size, (10, config.max_seq_len))
     out_tensor = model(in_tensor)
-    assert out_tensor.shape == torch.Size([10, 512, 30000]), "Output should have shape (batch_size, seq_len, vocab_size)."
+    assert out_tensor.shape == torch.Size([10, config.max_seq_len, config.vocab_size]),\
+        "Output should have shape (batch_size, seq_len, vocab_size)."
     print("BERT test passed!")
 
 def test_filter_and_batch_encode():
@@ -85,18 +86,41 @@ def test_filter_and_batch_encode():
 def test_bert_dataset():
     dataset = BERTDataset("webtext/webtext_train.bin", 32768, 128, 1)
     x, y, mask = next(iter(dataset))
-    print(x.shape, mask.shape, y.shape)
+    assert x.shape == torch.Size([128]), "Input should have shape (seq_len, )."
+    assert y.shape == torch.Size([128]), "Mask should have shape (seq_len, )."
+    assert mask.shape == torch.Size([128]), "Mask should have shape (seq_len, )."
     print("BERT dataset test passed!")
 
 def test_bert_dataloader():
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
     dataset = BERTDataset("webtext/webtext_train.bin", 32768, 128, 1)
     dataloader = DataLoader(dataset, batch_size=64, shuffle=False, num_workers=4)
+    first_batch = {}
     for x, y, mask in dataloader:
-        print(x.shape, mask.shape, y.shape)
+        first_batch["x"] = x
+        first_batch["y"] = y
+        first_batch["mask"] = mask
         break
+    assert first_batch["x"].shape == torch.Size([64, 128]), "Input should have shape (batch_size, seq_len)."
+    assert first_batch["y"].shape == torch.Size([64, 128]), "Target should have shape (batch_size, seq_len)."
+    assert first_batch["mask"].shape == torch.Size([64, 128]), "Mask should have shape (batch_size, seq_len)."
     print("BERT dataloader test passed!")
 
-def test_overfit(max_steps):
+def test_overfit(max_steps, max_lr=1e-3):
+    wandb.init(
+        project="cramming-test",
+    
+        # track hyperparameters and run metadata
+        config={
+            "max_lr": max_lr,
+            "architecture": "BERT",
+            "dataset": "webtext",
+            "max_steps": max_steps,
+            "batch_size": 16,
+            "seq_len": 128,
+            "max_seqs": 128
+        }
+    )
     print("Overfitting 128 sequences (static masks) in 1000 steps...")
     dataset = BERTDataset("webtext/webtext_val.bin", 32768, 128, 1, max_seqs=128)
     dataloader = DataLoader(dataset, batch_size=16, shuffle=False, num_workers=0)
@@ -113,7 +137,7 @@ def test_overfit(max_steps):
     )
     model = BERT(config)
     optimizer = torch.optim.Adam(model.parameters())
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=1e-3, total_steps=max_steps, pct_start=0.33, 
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=max_lr, total_steps=max_steps, pct_start=0.33, 
                                 div_factor=10000, final_div_factor=25000, anneal_strategy="linear")
     step = 0
     static_batches = []
@@ -126,6 +150,7 @@ def test_overfit(max_steps):
         optimizer.step()
         scheduler.step()
         print(f"Step {step} | Loss: {round(loss.item(), 3)}")
+        wandb.log({"loss": loss.item()})
         static_batches.append((x, y, mask))
         if step >= 8:
             break
@@ -140,18 +165,24 @@ def test_overfit(max_steps):
         optimizer.step()
         scheduler.step()
         print(f"Step {step} | Loss: {round(loss.item(), 3)}")
+        wandb.log({"loss": loss.item()})
 
 if __name__ == "__main__":
     # Test all the layers
-    # test_attention(4, 32, 512, 64, 8)
-    # test_ffn(4, 32, 512, 2048)
-    # test_transformer_block(4, 32, 512, 64, 8, 2048)
-    # test_config()
-    # test_bert()
+    test_attention(4, 32, 512, 64, 8)
+    test_ffn(4, 32, 512, 2048)
+    test_transformer_block(4, 32, 512, 64, 8, 2048)
+    test_config()
+    test_bert()
 
-    # # Make sure the dataset and dataloader work with webtext
-    # test_bert_dataset()
-    # test_bert_dataloader()
+    # Test the tokenization
+    test_filter_and_batch_encode()
+
+    # Make sure the dataset and dataloader work with webtext
+    test_bert_dataset()
+    test_bert_dataloader()
 
     # Overfit on a small dataset
-    test_overfit()
+    # test_overfit(max_steps=400, max_lr=1e-2)
+
+    print("All tests passed!")

@@ -1,3 +1,11 @@
+# model checkpoints
+*.pt
+*.ckpt
+models/
+
+# wandb logs
+wandb/
+
 # DS Store
 .DS_Store
 **/.DS_Store
