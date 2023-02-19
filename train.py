@@ -193,7 +193,7 @@ def train_bert(bert_config, train_config):
                             x, y, mask = x.to(device), y.to(device), mask.to(device)
                             loss = model(x, targets=y, mask=mask)
                             val_loss += loss.item()
-                val_loss /= len(val_loader)
+                val_loss /= val_steps
                 # end time
                 end = time.time()
                 if train_config.use_wandb:

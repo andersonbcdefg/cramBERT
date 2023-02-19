@@ -4,7 +4,7 @@ import torch
 import math
 import requests
 import pathlib
-import tqdm
+from tqdm.auto import tqdm
 import tarfile
 import numpy as np
 import random
@@ -201,10 +201,10 @@ class BERTDataset(torch.utils.data.IterableDataset):
         self.raw_data_path = raw_data_path
         self.bytes_per_seq = seq_len * 2
         self.usable_bytes = os.path.getsize(raw_data_path) // self.bytes_per_seq * self.bytes_per_seq
-        self.n_train_seqs = self.usable_bytes // self.bytes_per_seq
+        self.n_seqs = self.usable_bytes // self.bytes_per_seq
         if max_seqs > 0:
-            self.n_train_seqs = min(self.n_train_seqs, max_seqs)
-        print(f"Loading {self.n_train_seqs} sequences of length {seq_len} from {raw_data_path}.")
+            self.n_seqs = min(self.n_seqs, max_seqs)
+        print(f"Loading {self.n_seqs} sequences of length {seq_len} from {raw_data_path}.")
         
         # Params for masking function
         self.mask_token_id = mask_token_id
@@ -243,13 +243,13 @@ class BERTDataset(torch.utils.data.IterableDataset):
         worker_info = torch.utils.data.get_worker_info()
         if worker_info is None:  # single-process data loading, return the full iterator
             iter_start = 0
-            iter_end = self.n_train_seqs
+            iter_end = self.n_seqs
             print(f"Single process loading sequences {iter_start} to {iter_end - 1}")
         else:  # in a worker process, split workload
-            seqs_per_worker = int(math.ceil(self.n_train_seqs / worker_info.num_workers))
+            seqs_per_worker = int(math.ceil(self.n_seqs / worker_info.num_workers))
             worker_id = worker_info.id
             iter_start = worker_id * seqs_per_worker
-            iter_end = min(iter_start + seqs_per_worker, self.n_train_seqs)
+            iter_end = min(iter_start + seqs_per_worker, self.n_seqs)
             print(f"Worker {worker_id} assigned sequences {iter_start} to {iter_end}")
         return iter(self.mmap_iterator(iter_start, iter_end))
 

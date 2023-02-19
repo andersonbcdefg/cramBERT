@@ -1,6 +1,6 @@
 # training budget
 max_train_seqs: 78023355 # max number of training samples to use
-max_val_seqs: 12800
+max_val_seqs: 128000
 gpus: 1 # number of gpus to use
 train_workers: 4 # number of workers for train_dataloader
 
