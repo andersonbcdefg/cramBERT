@@ -194,7 +194,7 @@ def get_masked_tokens(tokens, vocab_size, mask_token_id, mask_prob=0.15,
 
 class BERTDataset(torch.utils.data.IterableDataset):
     def __init__(self, raw_data_path, vocab_size, seq_len, mask_token_id,
-                    mask_prob=0.15, random_prob=0.1, orig_prob=0.1, max_seqs=0):
+                    mask_prob=0.15, random_prob=0.1, orig_prob=0.1, max_seqs=0, loop=False):
         super().__init__()
 
         # Params for mmap to raw data file
@@ -214,6 +214,7 @@ class BERTDataset(torch.utils.data.IterableDataset):
         self.random_prob = random_prob
         self.orig_prob = orig_prob
         self.mask_token_id = mask_token_id
+        self.loop = loop
 
     def mmap_iterator(self, start_seq, end_seq):
         raw_data_file = open(self.raw_data_path, "r+b")
@@ -223,7 +224,10 @@ class BERTDataset(torch.utils.data.IterableDataset):
         while True:
             # If we've reached end of assigned range, reset to start of range
             if mm.tell() >= end_pos:
-                mm.seek(start_pos)
+                if self.loop:
+                    mm.seek(start_pos)
+                else:
+                    return
             seq_bytes = mm.read(self.bytes_per_seq)
             targets = np.frombuffer(seq_bytes, dtype=np.uint16)
             inputs, mask = get_masked_tokens(targets, self.vocab_size, self.mask_token_id,

@@ -8,11 +8,13 @@
     # https://pytorch.org/tutorials/recipes/recipes/amp_recipe.html
 # TODO: consider gradient checkpointing
 # TODO: from Cramming, sort training data by prevalence (pseudo-curriculum learning)
-# TODO: add wandb logging
+import os
+import time
 import sys
 import wandb
 import fire
 import yaml
+from tqdm.auto import tqdm
 import torch
 import torch.nn as nn
 import numpy as np
@@ -24,6 +26,7 @@ from model import BERT, BERTConfig
 class TrainConfig:
     # training budget
     max_train_seqs: int # max number of training samples to use
+    max_val_seqs: int # max number of validation samples to use
     gpus: int # number of gpus to use
     train_workers: int # number of workers for train_dataloader
 
@@ -89,7 +92,8 @@ def train_bert(bert_config, train_config):
         train_config.val_path, 
         train_config.vocab_size,
         bert_config.max_seq_len,
-        train_config.mask_token_id
+        train_config.mask_token_id,
+        max_seqs = train_config.max_val_seqs
     )
 
     # Error check and calculate batch size schedule, total steps
@@ -175,21 +179,31 @@ def train_bert(bert_config, train_config):
                 print(f"Step {training_step} | Train loss: {loss.item():.4f} | LR: {scheduler.get_last_lr()[0]:.4f}")
             if training_step % train_config.val_interval == 0:
                 model.eval()
+                val_steps = 0
                 val_loss = 0
+                # start time
+                start = time.time()
                 with torch.no_grad():
-                    for x, y, mask in val_loader:
+                    for x, y, mask in tqdm(val_loader):
+                        val_steps += 1
                         x, y, mask = x.to(device), y.to(device), mask.to(device)
                         loss = model(x, targets=y, mask=mask)
                         val_loss += loss.item()
                 val_loss /= len(val_loader)
+                # end time
+                end = time.time()
                 if train_config.use_wandb:
                     wandb.log({
                         "val_loss": val_loss
                     })
                 print(f"Step {training_step} | Val loss: {val_loss:.4f}")
-                model.train()
-            if training_step % train_config.save_interval == 0:
+                print(f"Validation took {end - start:.2f} seconds for {val_steps} steps.")
+                print("Time per micro-batch: ", (end - start) / val_steps, " seconds")
+                print("Saving model...")
+                if not os.path.exists(train_config.save_dir):
+                    os.mkdir(train_config.save_dir)
                 torch.save(model.state_dict(), f"{train_config.save_dir}/{training_step}.pt")
+                model.train()
             training_step += 1
             micro_batches = 0
             if training_step == train_config.total_steps:
