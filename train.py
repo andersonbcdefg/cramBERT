@@ -86,14 +86,16 @@ def train_bert(bert_config, train_config):
         train_config.vocab_size,
         bert_config.max_seq_len,
         train_config.mask_token_id,
-        max_seqs = train_config.max_train_seqs
+        max_seqs = train_config.max_train_seqs,
+        loop = True
     )
     val_dataset = BERTDataset(
         train_config.val_path, 
         train_config.vocab_size,
         bert_config.max_seq_len,
         train_config.mask_token_id,
-        max_seqs = train_config.max_val_seqs
+        max_seqs = train_config.max_val_seqs,
+        loop = False
     )
 
     # Error check and calculate batch size schedule, total steps
