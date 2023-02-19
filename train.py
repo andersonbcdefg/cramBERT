@@ -166,6 +166,7 @@ def train_bert(bert_config, train_config):
     # Training loop, with gradient accumulation
     training_step = 0
     micro_batches = 0
+    running_batch_loss = 0
     accum_iters =  train_config.batch_size_schedule[training_step] // train_config.micro_batch_size
     model.train()
     for x, y, mask in train_loader:
@@ -177,6 +178,7 @@ def train_bert(bert_config, train_config):
                     "microbatch_train_loss": micro_batch_loss.item()
                 })
             normalized_loss = micro_batch_loss / accum_iters
+            running_batch_loss += normalized_loss.item()
         scaler.scale(normalized_loss).backward()
         micro_batches += 1
         # Once microbatches accumulated, take a step
@@ -187,7 +189,7 @@ def train_bert(bert_config, train_config):
             scheduler.step()
             if train_config.use_wandb:
                 wandb.log({
-                    "accumulated_train_loss": normalized_loss.item(),
+                    "batch_train_loss": running_batch_loss,
                     "lr": scheduler.get_last_lr()[0],
                     "batch_size": train_config.batch_size_schedule[training_step]
                 })
