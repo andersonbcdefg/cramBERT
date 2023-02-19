@@ -14,7 +14,7 @@ import sys
 import wandb
 import fire
 import yaml
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 import torch
 import torch.nn as nn
 import numpy as np
@@ -161,24 +161,27 @@ def train_bert(bert_config, train_config):
     # Training loop, with gradient accumulation
     training_step = 0
     micro_batches = 0
+    accum_iters =  train_config.batch_size_schedule[training_step] // train_config.micro_batch_size
     model.train()
     for x, y, mask in train_loader:
         x, y, mask = x.to(device), y.to(device), mask.to(device)
-        loss = model(x, targets=y, mask=mask) / train_config.batch_size_schedule[training_step] * train_config.micro_batch_size
-        loss.backward()
+        micro_batch_loss = model(x, targets=y, mask=mask)
+        if train_config.use_wandb:
+            wandb.log({
+                "train_loss": micro_batch_loss.item(),
+                "lr": scheduler.get_last_lr()[0]
+                "batch_size": train_config.batch_size_schedule[training_step]
+            })
+        normalized_loss = micro_batch_loss / accum_iters
+        normalized_loss.backward()
         micro_batches += 1
-        if micro_batches * train_config.micro_batch_size == train_config.batch_size_schedule[training_step]:
+        # Once microbatches accumulated, take a step
+        if micro_batches == accum_iters:
             torch.nn.utils.clip_grad_norm_(model.parameters(), train_config.max_grad_norm)
             optimizer.step()
             scheduler.step()
-            if train_config.use_wandb:
-                wandb.log({
-                    "batch_size": train_config.batch_size_schedule[training_step],
-                    "train_loss": loss.item(),
-                    "lr": scheduler.get_last_lr()[0]
-                })
             if training_step % train_config.log_interval == 0:
-                print(f"Step {training_step} | Train loss: {loss.item():.4f} | LR: {scheduler.get_last_lr()[0]:.4f}")
+                print(f"Step {training_step} | Train loss: {loss.item():.4f} | LR: {scheduler.get_last_lr()[0]:.4f} | Batch size: {train_config.batch_size_schedule[training_step]}")
             if training_step % train_config.val_interval == 0:
                 model.eval()
                 val_steps = 0
@@ -186,13 +189,11 @@ def train_bert(bert_config, train_config):
                 # start time
                 start = time.time()
                 with torch.no_grad():
-                    with tqdm(total=val_dataset.n_seqs) as pbar:
-                        for x, y, mask in tqdm(val_loader):
-                            val_steps += 1
-                            pbar.update(x.shape[0])
-                            x, y, mask = x.to(device), y.to(device), mask.to(device)
-                            loss = model(x, targets=y, mask=mask)
-                            val_loss += loss.item()
+                    for x, y, mask in tqdm(val_loader):
+                        val_steps += 1
+                        x, y, mask = x.to(device), y.to(device), mask.to(device)
+                        loss = model(x, targets=y, mask=mask)
+                        val_loss += loss.item()
                 val_loss /= val_steps
                 # end time
                 end = time.time()
@@ -210,6 +211,7 @@ def train_bert(bert_config, train_config):
                 model.train()
             training_step += 1
             micro_batches = 0
+            accum_iters =  train_config.batch_size_schedule[training_step] // train_config.micro_batch_size
             if training_step == train_config.total_steps:
                 break
             optimizer.zero_grad(set_to_none=True)
