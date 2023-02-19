@@ -14,7 +14,7 @@ import sys
 import wandb
 import fire
 import yaml
-from tqdm.auto import tqdm
+from tqdm.notebook import tqdm
 import torch
 import torch.nn as nn
 import numpy as np
