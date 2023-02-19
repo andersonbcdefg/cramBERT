@@ -213,8 +213,6 @@ def train_bert(bert_config, train_config):
             if training_step == train_config.total_steps:
                 break
             optimizer.zero_grad(set_to_none=True)
-            print("did first step")
-            break
     torch.save(model.state_dict(), f"{train_config.save_dir}/final.pt")
     
 
