@@ -186,7 +186,7 @@ def train_bert(bert_config, train_config):
                 # start time
                 start = time.time()
                 with torch.no_grad():
-                    with tqdm(val_dataset.n_train_seqs) as pbar:
+                    with tqdm(total=val_dataset.n_train_seqs) as pbar:
                         for x, y, mask in tqdm(val_loader):
                             val_steps += 1
                             pbar.update(x.shape[0])
