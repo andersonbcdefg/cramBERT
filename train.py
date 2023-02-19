@@ -186,11 +186,13 @@ def train_bert(bert_config, train_config):
                 # start time
                 start = time.time()
                 with torch.no_grad():
-                    for x, y, mask in tqdm(val_loader):
-                        val_steps += 1
-                        x, y, mask = x.to(device), y.to(device), mask.to(device)
-                        loss = model(x, targets=y, mask=mask)
-                        val_loss += loss.item()
+                    with tqdm(val_dataset.n_train_seqs) as pbar:
+                        for x, y, mask in tqdm(val_loader):
+                            val_steps += 1
+                            pbar.update(x.shape[0])
+                            x, y, mask = x.to(device), y.to(device), mask.to(device)
+                            loss = model(x, targets=y, mask=mask)
+                            val_loss += loss.item()
                 val_loss /= len(val_loader)
                 # end time
                 end = time.time()
