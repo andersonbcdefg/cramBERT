@@ -99,7 +99,7 @@ def train_bert(bert_config, train_config):
     )
 
     # Error check and calculate batch size schedule, total steps
-    n_train_seqs = train_dataset.n_train_seqs
+    n_train_seqs = train_dataset.n_seqs
     assert train_config.max_batch_size % train_config.micro_batch_size == 0,\
         f"Batch size {train_config.max_batch_size} must be divisible by micro batch size {train_config.micro_batch_size}"
     if train_config.anneal_batch_size:
@@ -186,7 +186,7 @@ def train_bert(bert_config, train_config):
                 # start time
                 start = time.time()
                 with torch.no_grad():
-                    with tqdm(total=val_dataset.n_train_seqs) as pbar:
+                    with tqdm(total=val_dataset.n_seqs) as pbar:
                         for x, y, mask in tqdm(val_loader):
                             val_steps += 1
                             pbar.update(x.shape[0])
