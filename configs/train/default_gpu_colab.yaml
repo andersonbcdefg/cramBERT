@@ -4,6 +4,10 @@ max_val_seqs: 128000
 gpus: 1 # number of gpus to use
 train_workers: 4 # number of workers for train_dataloader
 
+# other training config
+use_amp: True
+use_checkpointing: False
+
 # data
 train_path: "/content/drive/My Drive/webtext_train.bin"
 val_path: "/content/drive/My Drive/webtext_val.bin"

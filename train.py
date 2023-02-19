@@ -30,6 +30,10 @@ class TrainConfig:
     gpus: int # number of gpus to use
     train_workers: int # number of workers for train_dataloader
 
+    # other training configs
+    use_amp: bool # whether to use automatic mixed precision training
+    use_checkpointing: bool # whether to use gradient checkpointing
+
     # data
     train_path: str
     val_path: str
@@ -128,7 +132,7 @@ def train_bert(bert_config, train_config):
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=train_config.micro_batch_size, shuffle=False, num_workers=max(4, 4 * num_gpus), pin_memory=num_gpus > 0)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=train_config.micro_batch_size, shuffle=False, num_workers=max(4, 4 * num_gpus), pin_memory=num_gpus > 0)
 
-    # Initialize optimizer and scheduler
+    # Initialize optimizer, scheduler, and scaler
     assert train_config.optimizer in ["Adam", "AdamW"], "Only Adam and AdamW optimizers currently supported."
     # group parameters by weight decay
     # https://github.com/karpathy/nanoGPT/blob/master/model.py
@@ -149,6 +153,7 @@ def train_bert(bert_config, train_config):
         anneal_strategy='linear',
         three_phase=False
     )
+    scaler = torch.cuda.amp.GradScaler(enabled=train_config.use_amp)
 
     # Initialize wandb
     if train_config.use_wandb:
@@ -165,18 +170,20 @@ def train_bert(bert_config, train_config):
     model.train()
     for x, y, mask in train_loader:
         x, y, mask = x.to(device), y.to(device), mask.to(device)
-        micro_batch_loss = model(x, targets=y, mask=mask)
-        if train_config.use_wandb:
-            wandb.log({
-                "microbatch_train_loss": micro_batch_loss.item()
-            })
-        normalized_loss = micro_batch_loss / accum_iters
-        normalized_loss.backward()
+        with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
+            micro_batch_loss = model(x, targets=y, mask=mask)
+            if train_config.use_wandb:
+                wandb.log({
+                    "microbatch_train_loss": micro_batch_loss.item()
+                })
+            normalized_loss = micro_batch_loss / accum_iters
+        scaler.scale(normalized_loss).backward()
         micro_batches += 1
         # Once microbatches accumulated, take a step
         if micro_batches == accum_iters:
             torch.nn.utils.clip_grad_norm_(model.parameters(), train_config.max_grad_norm)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
             scheduler.step()
             if train_config.use_wandb:
                 wandb.log({
