@@ -170,7 +170,7 @@ def train_bert(bert_config, train_config):
     model.train()
     for x, y, mask in train_loader:
         x, y, mask = x.to(device), y.to(device), mask.to(device)
-        with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
+        with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=train_config.use_amp):
             micro_batch_loss = model(x, targets=y, mask=mask)
             if train_config.use_wandb:
                 wandb.log({
@@ -202,10 +202,11 @@ def train_bert(bert_config, train_config):
                 with torch.no_grad():
                     for x, y, mask in tqdm(val_loader):
                         val_steps += 1
-                        x, y, mask = x.to(device), y.to(device), mask.to(device)
-                        loss = model(x, targets=y, mask=mask)
-                        val_loss += loss.item()
-                val_loss /= val_steps
+                        with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=train_config.use_amp):
+                            x, y, mask = x.to(device), y.to(device), mask.to(device)
+                            loss = model(x, targets=y, mask=mask)
+                            val_loss += loss.item()
+                    val_loss /= val_steps
                 # end time
                 end = time.time()
                 if train_config.use_wandb:
