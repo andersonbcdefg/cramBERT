@@ -168,9 +168,7 @@ def train_bert(bert_config, train_config):
         micro_batch_loss = model(x, targets=y, mask=mask)
         if train_config.use_wandb:
             wandb.log({
-                "train_loss": micro_batch_loss.item(),
-                "lr": scheduler.get_last_lr()[0]
-                "batch_size": train_config.batch_size_schedule[training_step]
+                "microbatch_train_loss": micro_batch_loss.item()
             })
         normalized_loss = micro_batch_loss / accum_iters
         normalized_loss.backward()
@@ -180,6 +178,12 @@ def train_bert(bert_config, train_config):
             torch.nn.utils.clip_grad_norm_(model.parameters(), train_config.max_grad_norm)
             optimizer.step()
             scheduler.step()
+            if train_config.use_wandb:
+                wandb.log({
+                    "accumulated_train_loss": normalized_loss.item(),
+                    "lr": scheduler.get_last_lr()[0],
+                    "batch_size": train_config.batch_size_schedule[training_step]
+                })
             if training_step % train_config.log_interval == 0:
                 print(f"Step {training_step} | Train loss: {loss.item():.4f} | LR: {scheduler.get_last_lr()[0]:.4f} | Batch size: {train_config.batch_size_schedule[training_step]}")
             if training_step % train_config.val_interval == 0:
