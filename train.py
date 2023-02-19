@@ -185,7 +185,7 @@ def train_bert(bert_config, train_config):
                     "batch_size": train_config.batch_size_schedule[training_step]
                 })
             if training_step % train_config.log_interval == 0:
-                print(f"Step {training_step} | Train loss: {loss.item():.4f} | LR: {scheduler.get_last_lr()[0]:.4f} | Batch size: {train_config.batch_size_schedule[training_step]}")
+                print(f"Step {training_step} | Train loss: {normalized_loss.item():.4f} | LR: {scheduler.get_last_lr()[0]:.4f} | Batch size: {train_config.batch_size_schedule[training_step]}")
             if training_step % train_config.val_interval == 0:
                 model.eval()
                 val_steps = 0
