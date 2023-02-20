@@ -25,7 +25,7 @@ start_div_factor: 1.0e+3
 end_div_factor: 2.5e+3
 
 # optimizer
-optimizer: Adam
+optimizer: AdamW
 b1: 0.9
 b2: 0.995
 weight_decay: 1.0e-2
