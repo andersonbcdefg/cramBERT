@@ -4,7 +4,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from layers import TransformerBlock, LayerNorm
+import bitsandbytes as bnb
 # TODO: add dropout for finetuning
+# TODO: normalize after embedding
 
 @dataclass
 class BERTConfig:
@@ -37,8 +39,10 @@ class BERT(nn.Module):
         self.vocab_size = config.vocab_size
         self.d_model = config.d_model
         self.max_seq_len = config.max_seq_len
-        self.token_emb = nn.Embedding(config.vocab_size, config.d_model)
+        self.token_emb = bnb.StableEmbedding(config.vocab_size, config.d_model)
+            self.token_emb = nn.Embedding(config.vocab_size, config.d_model)
         self.pos_emb = nn.Parameter(torch.zeros(1, config.max_seq_len, config.d_model))
+        self.emb_norm = LayerNorm(config.d_model, weight=True, bias=False)
         self.blocks = nn.ModuleList([TransformerBlock(
             config.d_model, 
             config.d_qkv, 
@@ -63,6 +67,7 @@ class BERT(nn.Module):
         
         # Initialize model parameters
         self.apply(self._init_weights)
+        # TODO: see if this initialization makes sense??
         torch.nn.init.normal_(self.pos_emb, mean=0.0, std=0.02)
 
     @classmethod
@@ -75,8 +80,9 @@ class BERT(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
-        elif isinstance(module, nn.Embedding):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+        # no longer necessary since we're using StableEmbedding
+        # elif isinstance(module, nn.Embedding):
+        #     torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
         elif isinstance(module, (LayerNorm)) or isinstance(module, (nn.LayerNorm)):
             torch.nn.init.ones_(module.weight)
             if module.bias is not None:
@@ -108,6 +114,7 @@ class BERT(nn.Module):
         token_embs = self.token_emb(X)
         pos_embs = self.pos_emb[:, :X.shape[1], :]
         X = self.token_emb(X) + self.pos_emb[:, :X.shape[1], :]
+        X = self.emb_norm(X)
         for block in self.blocks:
             X = block(X)
         logits = self.fc(self.norm(X))

@@ -21,6 +21,7 @@ import numpy as np
 from data import BERTDataset
 from dataclasses import dataclass
 from model import BERT, BERTConfig
+import bitsandbytes as bnb
 
 @dataclass
 class TrainConfig:
@@ -57,6 +58,7 @@ class TrainConfig:
     weight_decay: float
     max_grad_norm: float
     fused: bool # whether to use fused adam (adamw not supported in stable pytorch yet)
+    eight_bit: bool # whether to use 8-bit adam
 
     # logging, eval, & checkpointing
     use_wandb: bool
@@ -139,10 +141,16 @@ def train_bert(bert_config, train_config):
     # https://github.com/JonasGeiping/cramming/blob/main/cramming/backend/utils.py
     # https://huggingface.co/transformers/v3.3.1/training.html
     optim_groups = model.get_optim_groups(train_config.weight_decay)
-    if train_config.optimizer == "Adam":
-        optimizer = torch.optim.Adam(optim_groups)
+    if train_config.eight_bit and train_config.optimizer == "Adam":
+        optimizer = bnb.optim.Adam8Bit(optim_groups, betas=(train_config.b1, train_config.b2))
+    elif train_config.eight_bit and train_config.optimizer == "AdamW":
+        optimizer = bnb.optim.AdamW8Bit(optim_groups, betas=(train_config.b1, train_config.b2))
+    elif train_config.optimizer == "Adam" and train_config.fused:
+        optimizer = torch.optim.Adam(optim_groups, betas=(train_config.b1, train_config.b2), fused=True)
+    elif train_config.optimizer == "Adam":
+        optimizer = torch.optim.Adam(optim_groups, betas=(train_config.b1, train_config.b2))
     elif train_config.optimizer == "AdamW":
-        optimizer = torch.optim.AdamW(optim_groups)
+        optimizer = torch.optim.AdamW(optim_groups, betas=(train_config.b1, train_config.b2))
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer, 
         max_lr=train_config.max_lr, 

@@ -25,12 +25,13 @@ start_div_factor: 1.0e+3
 end_div_factor: 2.5e+3
 
 # optimizer
-optimizer: AdamW
+optimizer: Adam
 b1: 0.9
-b2: 0.98
-weight_decay: 1.0e-3
+b2: 0.995
+weight_decay: 1.0e-2
 max_grad_norm: 0.5
 fused: False
+eight_bit: True
 
 # logging, eval, & checkpointing
 use_wandb: True
