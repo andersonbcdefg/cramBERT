@@ -7,3 +7,6 @@
   ffn_geglu: True
   ffn_hidden_size: 2048
   tie_weights: True
+  dropout: 0.0
+  linear_bias: False
+  layernorm_bias: False

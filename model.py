@@ -19,8 +19,9 @@ class BERTConfig:
     ffn_geglu: bool
     ffn_hidden_size: int
     tie_weights: bool
-    # TODO: add dropout for finetuning
-    # TODO: optional bias for linear layers, layer norm, etc.
+    dropout: float
+    linear_bias: bool
+    layernorm_bias: bool
 
     @classmethod
     def from_yaml(cls, path):
@@ -121,9 +122,78 @@ class BERT(nn.Module):
             if mask is None:
                 raise ValueError("Mask is required when targets are provided.")
             targets.masked_fill_(~mask, -100)
-            # what's the loss for totally uniform predictions?
-            # uniform = torch.full(logits.shape, 1/self.vocab_size, device=logits.device)
-            # logits = logits * 0.0000001 + uniform * 0.9999999
+            loss = F.cross_entropy(
+                torch.flatten(logits, start_dim=0, end_dim=1), 
+                torch.flatten(targets)
+            )
+            return loss
+        else:
+            return logits
+
+class PytorchBERT(nn.Module):
+    def __init__(self, config: BERTConfig):
+        super().__init__()
+        self.vocab_size = config.vocab_size
+        self.token_emb = bnb.nn.StableEmbedding(config.vocab_size, config.d_model)
+        self.pos_emb = nn.Parameter(torch.zeros(1, config.max_seq_len, config.d_model))
+        self.emb_norm = LayerNorm(config.d_model, weight=True, bias=False)
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=config.d_model, 
+            nhead=config.n_heads, 
+            dim_feedforward=config.ffn_hidden_size, 
+            dropout=config.dropout, 
+            activation="gelu",
+            norm_first=True,
+            batch_first=True
+        )
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=config.n_layers)
+        self.norm = LayerNorm(config.d_model, weight=True, bias=False)
+        self.fc = nn.Linear(config.d_model, config.vocab_size, bias=False)
+
+        if config.tie_weights:
+            self.fc.weight = self.token_emb.weight
+
+        n_params = (sum(p.numel() for p in self.token_emb.parameters()) +
+                    self.pos_emb.numel() +
+                    sum(p.numel() for p in self.encoder.parameters()) +
+                    sum(p.numel() for p in self.norm.parameters()) +
+                    sum(p.numel() for p in self.fc.parameters())
+        )
+        if config.tie_weights:
+            n_params -= self.fc.weight.numel()
+        print("Number of parameters: ~%.0fM" % (n_params/1e6,))
+
+    def get_optim_groups(self, weight_decay):
+        decay = set()
+        no_decay = set()
+        for name, param in self.named_parameters():
+            if name.endswith(".bias"):
+                no_decay.add(name)
+            elif name.endswith(".norm1.weight") or name.endswith(".norm2.weight"):
+                no_decay.add(name)
+            elif "pos_emb" in name or "token_emb" in name:
+                no_decay.add(name)
+            else:
+                decay.add(name)
+        decay = sorted(list(decay))
+        no_decay = sorted(list(no_decay))
+        param_dict = {pn: p for pn, p in self.named_parameters()}
+        
+        return [
+            {'params': [param_dict[pn] for pn in decay], 'weight_decay': weight_decay},
+            {'params': [param_dict[pn] for pn in no_decay], 'weight_decay': 0.0},
+        ]   
+    def forward(self, X, targets=None, mask=None):
+        token_embs = self.token_emb(X)
+        pos_embs = self.pos_emb[:, :X.shape[1], :]
+        X = self.token_emb(X) + self.pos_emb[:, :X.shape[1], :]
+        X = self.emb_norm(X)
+        X = self.encoder(X)
+        logits = self.fc(self.norm(X))
+        if targets is not None:
+            if mask is None:
+                raise ValueError("Mask is required when targets are provided.")
+            targets.masked_fill_(~mask, -100)
             loss = F.cross_entropy(
                 torch.flatten(logits, start_dim=0, end_dim=1), 
                 torch.flatten(targets)
