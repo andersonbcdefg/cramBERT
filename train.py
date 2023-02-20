@@ -142,9 +142,9 @@ def train_bert(bert_config, train_config):
     # https://huggingface.co/transformers/v3.3.1/training.html
     optim_groups = model.get_optim_groups(train_config.weight_decay)
     if train_config.eight_bit and train_config.optimizer == "Adam":
-        optimizer = bnb.optim.Adam8Bit(optim_groups, betas=(train_config.b1, train_config.b2))
+        optimizer = bnb.optim.Adam8bit(optim_groups, betas=(train_config.b1, train_config.b2))
     elif train_config.eight_bit and train_config.optimizer == "AdamW":
-        optimizer = bnb.optim.AdamW8Bit(optim_groups, betas=(train_config.b1, train_config.b2))
+        optimizer = bnb.optim.AdamW8bit(optim_groups, betas=(train_config.b1, train_config.b2))
     elif train_config.optimizer == "Adam" and train_config.fused:
         optimizer = torch.optim.Adam(optim_groups, betas=(train_config.b1, train_config.b2), fused=True)
     elif train_config.optimizer == "Adam":
