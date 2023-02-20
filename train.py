@@ -181,6 +181,7 @@ def train_bert(bert_config, train_config):
             running_batch_loss += normalized_loss.item()
         scaler.scale(normalized_loss).backward()
         micro_batches += 1
+        del x, y, mask, micro_batch_loss, normalized_loss
         # Once microbatches accumulated, take a step
         if micro_batches == accum_iters:
             torch.nn.utils.clip_grad_norm_(model.parameters(), train_config.max_grad_norm)
@@ -195,6 +196,7 @@ def train_bert(bert_config, train_config):
                 })
             if training_step % train_config.log_interval == 0:
                 print(f"Step {training_step} | Train loss: {running_batch_loss:.4f} | LR: {scheduler.get_last_lr()[0]:.4f} | Batch size: {train_config.batch_size_schedule[training_step]}")
+            del running_batch_loss
             if training_step % train_config.val_interval == 0:
                 model.eval()
                 val_steps = 0
@@ -231,7 +233,6 @@ def train_bert(bert_config, train_config):
             if training_step == train_config.total_steps:
                 break
             optimizer.zero_grad(set_to_none=True)
-            del x, y, mask, micro_batch_loss, normalized_loss
     torch.save(model.state_dict(), f"{train_config.save_dir}/final.pt")
     
 
