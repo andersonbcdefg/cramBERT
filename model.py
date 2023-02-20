@@ -40,7 +40,6 @@ class BERT(nn.Module):
         self.d_model = config.d_model
         self.max_seq_len = config.max_seq_len
         self.token_emb = bnb.StableEmbedding(config.vocab_size, config.d_model)
-            self.token_emb = nn.Embedding(config.vocab_size, config.d_model)
         self.pos_emb = nn.Parameter(torch.zeros(1, config.max_seq_len, config.d_model))
         self.emb_norm = LayerNorm(config.d_model, weight=True, bias=False)
         self.blocks = nn.ModuleList([TransformerBlock(
