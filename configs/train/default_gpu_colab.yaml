@@ -16,19 +16,19 @@ vocab_size: 32768 # vocab size for data/tokenizer
 micro_batch_size: 256 # 128 or 256 whatever fits in memory
 max_batch_size: 4096 # recommended 4096
 anneal_batch_size: True # whether to anneal batch size
-batch_size_anneal_frac: 0.3 # what fraction of training examples to use for annealing
+batch_size_anneal_frac: 0.3 # what fraction of training examples to use for batch-size annealing
 
 # one-cycle lr schedule
 pct_start: 0.5
-max_lr: 1.0e-3
-start_div_factor: 1.0e+4
-end_div_factor: 2.5e+4
+max_lr: 3.0e-4
+start_div_factor: 1.0e+3
+end_div_factor: 2.5e+3
 
 # optimizer
 optimizer: AdamW
 b1: 0.9
 b2: 0.98
-weight_decay: 1.0e-2
+weight_decay: 1.0e-3
 max_grad_norm: 0.5
 fused: False
 
