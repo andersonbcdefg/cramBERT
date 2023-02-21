@@ -5,8 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from layers import TransformerBlock, LayerNorm
 import bitsandbytes as bnb
+import transformers
 # TODO: add dropout for finetuning
-# TODO: normalize after embedding
 
 @dataclass
 class BERTConfig:
@@ -22,6 +22,7 @@ class BERTConfig:
     dropout: float
     linear_bias: bool
     layernorm_bias: bool
+    initializer_range: float = 0.02
 
     @classmethod
     def from_yaml(cls, path):
@@ -132,38 +133,29 @@ class BERT(nn.Module):
         else:
             return logits
 
-class PytorchBERT(nn.Module):
+class HuggingFaceBERT(nn.Module):
+    def __init__(self, config: BERTConfig):
+        pass
+
+class HuggingFaceRoBERTa(nn.Module):
     def __init__(self, config: BERTConfig):
         super().__init__()
-        self.vocab_size = config.vocab_size
-        self.token_emb = bnb.nn.StableEmbedding(config.vocab_size, config.d_model)
-        self.pos_emb = nn.Parameter(torch.zeros(1, config.max_seq_len, config.d_model))
-        self.emb_norm = LayerNorm(config.d_model, weight=True, bias=False)
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=config.d_model, 
-            nhead=config.n_heads, 
-            dim_feedforward=config.ffn_hidden_size, 
-            dropout=config.dropout, 
-            activation="gelu",
-            norm_first=True,
-            batch_first=True
+        self.roberta_config = transformers.RobertaPreLayerNormConfig(
+            vocab_size=config.vocab_size,
+            hidden_size=config.d_model,
+            num_hidden_layers=config.n_layers,
+            num_attention_heads=config.n_heads,
+            intermediate_size=config.ffn_hidden_size,
+            hidden_act="gelu",
+            hidden_dropout_prob=config.dropout,
+            attention_probs_dropout_prob=config.dropout,
+            max_position_embeddings=config.max_seq_len + 2,
+            type_vocab_size=1,
+            initializer_range=config.initializer_range,
         )
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=config.n_layers)
-        self.norm = LayerNorm(config.d_model, weight=True, bias=False)
-        self.fc = nn.Linear(config.d_model, config.vocab_size, bias=False)
-
-        if config.tie_weights:
-            self.fc.weight = self.token_emb.weight
-
-        n_params = (sum(p.numel() for p in self.token_emb.parameters()) +
-                    self.pos_emb.numel() +
-                    sum(p.numel() for p in self.encoder.parameters()) +
-                    sum(p.numel() for p in self.norm.parameters()) +
-                    sum(p.numel() for p in self.fc.parameters())
-        )
-        if config.tie_weights:
-            n_params -= self.fc.weight.numel()
-        print("Number of parameters: ~%.0fM" % (n_params/1e6,))
+        self.roberta = transformers.RobertaPreLayerNormForMaskedLM(self.roberta_config)
+        n_params = (sum(p.numel() for p in self.roberta.parameters()))
+        print("Number of parameters: ~%.0fM" % (n_params / 1e6,))
 
     def get_optim_groups(self, weight_decay):
         decay = set()
@@ -171,9 +163,9 @@ class PytorchBERT(nn.Module):
         for name, param in self.named_parameters():
             if name.endswith(".bias"):
                 no_decay.add(name)
-            elif name.endswith(".norm1.weight") or name.endswith(".norm2.weight"):
+            elif "LayerNorm" in name:
                 no_decay.add(name)
-            elif "pos_emb" in name or "token_emb" in name:
+            elif "roberta.embeddings" in name:
                 no_decay.add(name)
             else:
                 decay.add(name)
@@ -185,13 +177,9 @@ class PytorchBERT(nn.Module):
             {'params': [param_dict[pn] for pn in decay], 'weight_decay': weight_decay},
             {'params': [param_dict[pn] for pn in no_decay], 'weight_decay': 0.0},
         ]   
+    
     def forward(self, X, targets=None, mask=None):
-        token_embs = self.token_emb(X)
-        pos_embs = self.pos_emb[:, :X.shape[1], :]
-        X = self.token_emb(X) + self.pos_emb[:, :X.shape[1], :]
-        X = self.emb_norm(X)
-        X = self.encoder(X)
-        logits = self.fc(self.norm(X))
+        logits = self.roberta(X).logits
         if targets is not None:
             if mask is None:
                 raise ValueError("Mask is required when targets are provided.")
