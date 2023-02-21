@@ -20,7 +20,7 @@ import torch.nn as nn
 import numpy as np
 from data import BERTDataset
 from dataclasses import dataclass
-from model import BERT, PytorchBERT, BERTConfig
+from model import BERT, HuggingFaceRoBERTa, BERTConfig
 import bitsandbytes as bnb
 
 @dataclass
