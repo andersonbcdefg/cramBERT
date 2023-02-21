@@ -125,7 +125,7 @@ def train_bert(bert_config, train_config):
         batch_size_schedule = np.ones(n_train_seqs // train_config.max_batch_size) * train_config.max_batch_size
     train_config.batch_size_schedule = batch_size_schedule
     train_config.total_steps = len(batch_size_schedule)
-    train_config.total_microbatches = np.sum(batch_size_schedule) // train_config.micro_batch_size
+    train_config.total_microbatches = int(np.sum(batch_size_schedule) // train_config.micro_batch_size)
     print(f"Training for {train_config.total_steps} steps.")
     
     # Initialize model & data loaders
