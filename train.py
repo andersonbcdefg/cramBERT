@@ -136,7 +136,7 @@ def train_bert(bert_config, train_config):
     device = torch.device('cuda' if torch.cuda.is_available() and num_gpus > 0 else 'cpu')
     if train_config.model == "mine":
         model = BERT(bert_config)
-    elif train_config.model == "pytorch":
+    elif train_config.model == "huggingface":
         model = HuggingFaceRoBERTa(bert_config)
     model.to(device)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=train_config.micro_batch_size, shuffle=False, num_workers=train_config.train_workers, pin_memory=num_gpus > 0)
