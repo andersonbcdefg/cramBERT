@@ -65,6 +65,7 @@ class TrainConfig:
 
     # logging, eval, & checkpointing
     use_wandb: bool
+    wandb_watch: bool
     log_interval: int
     val_interval: int
     save_interval: int
@@ -138,6 +139,8 @@ def train_bert(bert_config, train_config):
     elif train_config.model == "pytorch":
         model = PytorchBERT(bert_config)
     model.to(device)
+    if train_config.wandb_watch:
+        wandb.watch(model, log="all")
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=train_config.micro_batch_size, shuffle=False, num_workers=train_config.train_workers, pin_memory=num_gpus > 0)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=train_config.micro_batch_size, shuffle=False, num_workers=train_config.train_workers, pin_memory=num_gpus > 0)
 
