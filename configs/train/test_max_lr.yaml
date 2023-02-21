@@ -22,9 +22,9 @@ anneal_batch_size: True # whether to anneal batch size
 batch_size_anneal_frac: 0.3 # what fraction of training examples to use for batch-size annealing
 
 # one-cycle lr schedule
-pct_start: 0.5
-max_lr: 3.0e-4
-start_div_factor: 1.0e+3
+pct_start: 0.2
+max_lr: 10.0
+start_div_factor: 1.0e+6
 end_div_factor: 2.5e+3
 
 # optimizer
