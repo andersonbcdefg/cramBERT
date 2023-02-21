@@ -68,7 +68,9 @@ class BERT(nn.Module):
         # Initialize model parameters
         self.apply(self._init_weights)
         # TODO: see if this initialization makes sense??
-        torch.nn.init.normal_(self.pos_emb, mean=0.0, std=0.02)
+        torch.nn.init.xavier_uniform_(self.pos_emb, gain=1.0)
+        print("Minimum position embedding value: %.2f" % self.pos_emb.min())
+        print("Maximum position embedding value: %.2f" % self.pos_emb.max())
 
     @classmethod
     def from_pretrained(cls, name):

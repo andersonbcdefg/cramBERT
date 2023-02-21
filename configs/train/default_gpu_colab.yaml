@@ -23,7 +23,7 @@ batch_size_anneal_frac: 0.3 # what fraction of training examples to use for batc
 
 # one-cycle lr schedule
 pct_start: 0.5
-max_lr: 3.0e-4
+max_lr: 1.0e-3
 start_div_factor: 1.0e+3
 end_div_factor: 2.5e+3
 
