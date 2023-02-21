@@ -139,8 +139,6 @@ def train_bert(bert_config, train_config):
     elif train_config.model == "pytorch":
         model = PytorchBERT(bert_config)
     model.to(device)
-    if train_config.wandb_watch:
-        wandb.watch(model, log="all")
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=train_config.micro_batch_size, shuffle=False, num_workers=train_config.train_workers, pin_memory=num_gpus > 0)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=train_config.micro_batch_size, shuffle=False, num_workers=train_config.train_workers, pin_memory=num_gpus > 0)
 
@@ -180,7 +178,9 @@ def train_bert(bert_config, train_config):
             "bert_config": bert_config.to_dict(),
             "train_config": train_config.to_dict()
         })
-
+    if train_config.wandb_watch:
+        wandb.watch(model, log="all")
+        
     # Training loop, with gradient accumulation
     training_step = 0
     micro_batches = 0
