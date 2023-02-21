@@ -125,6 +125,7 @@ def train_bert(bert_config, train_config):
         batch_size_schedule = np.ones(n_train_seqs // train_config.max_batch_size) * train_config.max_batch_size
     train_config.batch_size_schedule = batch_size_schedule
     train_config.total_steps = len(batch_size_schedule)
+    train_config.total_microbatches = np.sum(batch_size_schedule) // train_config.micro_batch_size
     print(f"Training for {train_config.total_steps} steps.")
     
     # Initialize model & data loaders
@@ -160,7 +161,7 @@ def train_bert(bert_config, train_config):
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer, 
         max_lr=train_config.max_lr, 
-        total_steps=train_config.total_steps, 
+        total_steps=train_config.total_microbatches, 
         pct_start=train_config.pct_start, 
         div_factor=train_config.start_div_factor, 
         final_div_factor=train_config.end_div_factor,
@@ -195,13 +196,13 @@ def train_bert(bert_config, train_config):
             running_batch_loss += normalized_loss.item()
         scaler.scale(normalized_loss).backward()
         micro_batches += 1
+        scheduler.step()
         del x, y, mask, micro_batch_loss, normalized_loss
         # Once microbatches accumulated, take a step
         if micro_batches == accum_iters:
             torch.nn.utils.clip_grad_norm_(model.parameters(), train_config.max_grad_norm)
             scaler.step(optimizer)
             scaler.update()
-            scheduler.step()
             if train_config.use_wandb:
                 wandb.log({
                     "batch_train_loss": running_batch_loss,
