@@ -79,7 +79,7 @@ class BERT(nn.Module):
     # Borrowed from Karpathy's nanoGPT 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            torch.nn.init.normal_(module.weight, mean=0.0, std=config.initializer_range)
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
         # no longer necessary since we're using StableEmbedding

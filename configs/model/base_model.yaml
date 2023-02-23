@@ -11,3 +11,4 @@
   dropout: 0.0
   linear_bias: False
   layernorm_bias: False
+  initializer_range: 0.002
