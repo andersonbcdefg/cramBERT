@@ -30,7 +30,7 @@ class TrainConfig:
 
     # training budget
     max_train_seqs: int # max number of training samples to use
-    do_eval: bool = True # whether to evaluate on validation set
+    do_eval: bool # whether to evaluate on validation set
     max_val_seqs: int # max number of validation samples to use
     gpus: int # number of gpus to use
     train_workers: int # number of workers for train_dataloader
