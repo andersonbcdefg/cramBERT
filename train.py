@@ -255,6 +255,7 @@ def train_bert(bert_config, train_config):
             training_step += 1
             micro_batches = 0
             running_batch_loss = 0
+            print("Training step: ", training_step)
             accum_iters =  train_config.batch_size_schedule[training_step] // train_config.micro_batch_size
             if training_step == train_config.total_steps:
                 break
