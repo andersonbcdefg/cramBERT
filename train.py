@@ -66,7 +66,7 @@ class TrainConfig:
 
     # logging, eval, & checkpointing
     use_wandb: bool
-    wand_project: str
+    wandb_project: str
     wandb_watch: bool
     log_interval: int
     val_interval: int
