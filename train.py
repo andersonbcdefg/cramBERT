@@ -144,7 +144,9 @@ def train_bert(bert_config, train_config):
         model = HuggingFaceRoBERTa(bert_config)
     model.to(device)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=train_config.micro_batch_size, shuffle=False, num_workers=train_config.train_workers, pin_memory=num_gpus > 0)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=train_config.micro_batch_size, shuffle=False, num_workers=train_config.train_workers, pin_memory=num_gpus > 0)
+    val_loader = None
+    if train_config.do_eval:
+        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=train_config.micro_batch_size, shuffle=False, num_workers=train_config.train_workers, pin_memory=num_gpus > 0)
 
     # Initialize optimizer, scheduler, and scaler
     assert train_config.optimizer in ["Adam", "AdamW"], "Only Adam and AdamW optimizers currently supported."
