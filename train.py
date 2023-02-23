@@ -25,9 +25,6 @@ import bitsandbytes as bnb
 
 @dataclass
 class TrainConfig:
-    # model
-    model: str # either "mine" my BERT, or "huggingface" RoBERTa
-
     # training budget
     max_train_seqs: int # max number of training samples to use
     epochs: int # number of epochs to train
