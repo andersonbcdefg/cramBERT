@@ -17,7 +17,7 @@ use_checkpointing: False
 train_path: "/content/drive/My Drive/webtext_train.bin"
 val_path: "/content/drive/My Drive/webtext_val.bin"
 tokenizer_path: "/content/cramBERT/webtext/tokenizer.json"
-micro_batch_size: 16 # 128 or 256 whatever fits in memory
+micro_batch_size: 32 # 128 or 256 whatever fits in memory
 max_batch_size: 32 # recommended 4096
 anneal_batch_size: False # whether to anneal batch size
 batch_size_anneal_frac: 0 # what fraction of training examples to use for batch-size annealing
