@@ -3,7 +3,7 @@ model: "huggingface"
 
 # training budget
 max_train_seqs: 128 # max number of training samples to use
-epochs: 1000
+epochs: 100000
 do_eval: False
 max_val_seqs: 0
 gpus: 1 # number of gpus to use
@@ -41,7 +41,7 @@ eight_bit: False
 use_wandb: True
 wandb_project: "cramming-test"
 wandb_watch: True
-log_interval: 1
+log_interval: 100
 val_interval: 1000
 save_interval: 1000
 save_dir: "/content/drive/My Drive/cramBERT/model_checkpoints/"
