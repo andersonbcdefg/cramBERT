@@ -15,6 +15,7 @@ use_checkpointing: False
 # data
 train_path: "/content/drive/My Drive/webtext_train.bin"
 val_path: "/content/drive/My Drive/webtext_val.bin"
+loop_train_data: True
 tokenizer_path: "/content/cramBERT/webtext/tokenizer.json"
 micro_batch_size: 16 # 128 or 256 whatever fits in memory
 max_batch_size: 32 # recommended 4096

@@ -42,6 +42,7 @@ class TrainConfig:
     # data
     train_path: str
     val_path: str
+    loop_train_data: bool # whether to loop over training data, or single-epoch
     tokenizer_path: str
     micro_batch_size: int # 128 or 256 whatever fits in memory
     max_batch_size: int # recommended 4096
@@ -100,7 +101,7 @@ def train_bert(bert_config, train_config):
         tokenizer,
         bert_config.max_seq_len,
         max_seqs = train_config.max_train_seqs,
-        loop = True
+        loop = train_config.loop_train_data
     )
 
     if train_config.do_eval:
@@ -113,7 +114,7 @@ def train_bert(bert_config, train_config):
         )
 
     # Error check and calculate batch size schedule, total steps
-    n_train_seqs = train_dataset.n_seqs
+    n_train_seqs = train_dataset.n_seqs if not train_config.loop_train_data else train_config.max_train_seqs
     assert train_config.max_batch_size % train_config.micro_batch_size == 0,\
         f"Batch size {train_config.max_batch_size} must be divisible by micro batch size {train_config.micro_batch_size}"
     if train_config.anneal_batch_size:
