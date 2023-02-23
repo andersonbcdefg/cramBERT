@@ -3,7 +3,7 @@ model: "huggingface"
 
 # training budget
 max_train_seqs: 128 # max number of training samples to use
-epochs: 100
+epochs: 1000
 do_eval: False
 max_val_seqs: 0
 gpus: 1 # number of gpus to use
