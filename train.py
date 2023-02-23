@@ -194,6 +194,7 @@ def train_bert(bert_config, train_config):
     micro_batches = 0
     running_batch_loss = 0
     accum_iters =  train_config.batch_size_schedule[training_step] // train_config.micro_batch_size
+    print("initial accum_iters", accum_iters)
     model.train()
     for x, y in train_loader:
         x, y = x.to(device), y.to(device)
@@ -211,6 +212,7 @@ def train_bert(bert_config, train_config):
         del x, y, micro_batch_loss, normalized_loss
         # Once microbatches accumulated, take a step
         if micro_batches == accum_iters:
+            print("taking a step")
             torch.nn.utils.clip_grad_norm_(model.parameters(), train_config.max_grad_norm)
             scaler.step(optimizer)
             scaler.update()
