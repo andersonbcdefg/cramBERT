@@ -30,6 +30,7 @@ class TrainConfig:
 
     # training budget
     max_train_seqs: int # max number of training samples to use
+    do_eval: bool = True # whether to evaluate on validation set
     max_val_seqs: int # max number of validation samples to use
     gpus: int # number of gpus to use
     train_workers: int # number of workers for train_dataloader
@@ -65,6 +66,7 @@ class TrainConfig:
 
     # logging, eval, & checkpointing
     use_wandb: bool
+    wand_project: str
     wandb_watch: bool
     log_interval: int
     val_interval: int
@@ -99,14 +101,15 @@ def train_bert(bert_config, train_config):
         max_seqs = train_config.max_train_seqs,
         loop = True
     )
-    val_dataset = BERTDataset(
-        train_config.val_path, 
-        train_config.vocab_size,
-        bert_config.max_seq_len,
-        train_config.mask_token_id,
-        max_seqs = train_config.max_val_seqs,
-        loop = False
-    )
+    if train_config.do_eval:
+        val_dataset = BERTDataset(
+            train_config.val_path, 
+            train_config.vocab_size,
+            bert_config.max_seq_len,
+            train_config.mask_token_id,
+            max_seqs = train_config.max_val_seqs,
+            loop = False
+        )
 
     # Error check and calculate batch size schedule, total steps
     n_train_seqs = train_dataset.n_seqs
@@ -173,11 +176,13 @@ def train_bert(bert_config, train_config):
 
     # Initialize wandb
     if train_config.use_wandb:
-        wandb.init(project="cramming", 
-        config={
-            "bert_config": bert_config.to_dict(),
-            "train_config": train_config.to_dict()
-        })
+        wandb.init(
+            project=train_config.wandb_project, 
+            config={
+                "bert_config": bert_config.to_dict(),
+                "train_config": train_config.to_dict()
+            }
+        )
     if train_config.wandb_watch:
         wandb.watch(model, log="all")
 
@@ -187,10 +192,10 @@ def train_bert(bert_config, train_config):
     running_batch_loss = 0
     accum_iters =  train_config.batch_size_schedule[training_step] // train_config.micro_batch_size
     model.train()
-    for x, y, mask in train_loader:
-        x, y, mask = x.to(device), y.to(device), mask.to(device)
+    for x, y in train_loader:
+        x, y = x.to(device), y.to(device)
         with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=train_config.use_amp):
-            micro_batch_loss = model(x, targets=y, mask=mask)
+            micro_batch_loss = model(x, targets=y)
             if train_config.use_wandb:
                 wandb.log({
                     "microbatch_train_loss": micro_batch_loss.item()
@@ -200,7 +205,7 @@ def train_bert(bert_config, train_config):
         scaler.scale(normalized_loss).backward()
         micro_batches += 1
         scheduler.step()
-        del x, y, mask, micro_batch_loss, normalized_loss
+        del x, y, micro_batch_loss, normalized_loss
         # Once microbatches accumulated, take a step
         if micro_batches == accum_iters:
             torch.nn.utils.clip_grad_norm_(model.parameters(), train_config.max_grad_norm)
@@ -215,18 +220,18 @@ def train_bert(bert_config, train_config):
             if training_step % train_config.log_interval == 0:
                 print(f"Step {training_step} | Train loss: {running_batch_loss:.4f} | LR: {scheduler.get_last_lr()[0]:.4f} | Batch size: {train_config.batch_size_schedule[training_step]}")
             del running_batch_loss
-            if training_step % train_config.val_interval == 0:
+            if training_step % train_config.val_interval == 0 and train_config.do_eval:
                 model.eval()
                 val_steps = 0
                 val_loss = 0
                 # start time
                 start = time.time()
                 with torch.no_grad():
-                    for x, y, mask in tqdm(val_loader):
+                    for x, y in val_loader:
                         val_steps += 1
                         with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=train_config.use_amp):
-                            x, y, mask = x.to(device), y.to(device), mask.to(device)
-                            loss = model(x, targets=y, mask=mask)
+                            x, y = x.to(device), y.to(device)
+                            loss = model(x, targets=y)
                             val_loss += loss.item()
                     val_loss /= val_steps
                 # end time
@@ -243,7 +248,7 @@ def train_bert(bert_config, train_config):
                     os.mkdir(train_config.save_dir)
                 torch.save(model.state_dict(), f"{train_config.save_dir}/{training_step}.pt")
                 model.train()
-                del x, y, mask, loss, val_loss
+                del x, y, loss, val_loss
             training_step += 1
             micro_batches = 0
             running_batch_loss = 0

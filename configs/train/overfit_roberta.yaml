@@ -1,9 +1,10 @@
 # model
-model: "mine"
+model: "huggingface"
 
 # training budget
-max_train_seqs: 78023355 # max number of training samples to use
-max_val_seqs: 128000
+max_train_seqs: 128 # max number of training samples to use
+do_eval: False
+max_val_seqs: 0
 gpus: 1 # number of gpus to use
 train_workers: 2 # number of workers for train_dataloader
 
@@ -16,16 +17,16 @@ train_path: "/content/drive/My Drive/webtext_train.bin"
 val_path: "/content/drive/My Drive/webtext_val.bin"
 mask_token_id: 1 # id of mask token in vocab
 vocab_size: 32768 # vocab size for data/tokenizer
-micro_batch_size: 256 # 128 or 256 whatever fits in memory
-max_batch_size: 4096 # recommended 4096
-anneal_batch_size: True # whether to anneal batch size
-batch_size_anneal_frac: 0.3 # what fraction of training examples to use for batch-size annealing
+micro_batch_size: 32 # 128 or 256 whatever fits in memory
+max_batch_size: 32 # recommended 4096
+anneal_batch_size: False # whether to anneal batch size
+batch_size_anneal_frac: 0 # what fraction of training examples to use for batch-size annealing
 
 # one-cycle lr schedule
 pct_start: 0.5
-max_lr: 1.0e-3
-start_div_factor: 1.0e+3
-end_div_factor: 2.5e+3
+max_lr: 3e-4
+start_div_factor: 1.0e+4
+end_div_factor: 2.5e+4
 
 # optimizer
 optimizer: AdamW
@@ -34,11 +35,11 @@ b2: 0.995
 weight_decay: 1.0e-2
 max_grad_norm: 0.5
 fused: False
-eight_bit: True
+eight_bit: False
 
 # logging, eval, & checkpointing
 use_wandb: True
-wandb_project: "cramming"
+wandb_project: "cramming-test"
 wandb_watch: True
 log_interval: 25
 val_interval: 1000

@@ -113,7 +113,8 @@ class BERT(nn.Module):
             {'params': [param_dict[pn] for pn in no_decay], 'weight_decay': 0.0},
         ] 
 
-    def forward(self, X, targets=None, mask=None):
+    # Targets must be masked with -100 at non-masked indices that should be ignored
+    def forward(self, X, targets=None):
         token_embs = self.token_emb(X)
         pos_embs = self.pos_emb[:, :X.shape[1], :]
         X = self.token_emb(X) + self.pos_emb[:, :X.shape[1], :]
@@ -122,9 +123,6 @@ class BERT(nn.Module):
             X = block(X)
         logits = self.fc(self.norm(X))
         if targets is not None:
-            if mask is None:
-                raise ValueError("Mask is required when targets are provided.")
-            targets.masked_fill_(~mask, -100)
             loss = F.cross_entropy(
                 torch.flatten(logits, start_dim=0, end_dim=1), 
                 torch.flatten(targets)
@@ -178,12 +176,9 @@ class HuggingFaceRoBERTa(nn.Module):
             {'params': [param_dict[pn] for pn in no_decay], 'weight_decay': 0.0},
         ]   
     
-    def forward(self, X, targets=None, mask=None):
+    def forward(self, X, targets=None):
         logits = self.roberta(X).logits
         if targets is not None:
-            if mask is None:
-                raise ValueError("Mask is required when targets are provided.")
-            targets.masked_fill_(~mask, -100)
             loss = F.cross_entropy(
                 torch.flatten(logits, start_dim=0, end_dim=1), 
                 torch.flatten(targets)

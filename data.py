@@ -8,6 +8,7 @@ from tqdm.auto import tqdm
 import tarfile
 import numpy as np
 import random
+import transformers
 from tokenizers import Tokenizer, decoders, models, normalizers, pre_tokenizers, trainers
 from webtext.archiver import Reader
 from itertools import chain, filterfalse
@@ -90,20 +91,16 @@ def count_webtext_english_docs(extracted_dir=WEBTEXT_EXTRACTED_FOLDER):
     print(f"Total number of English documents: {num_documents}")
 
 """
-Train a tokenizer on the WebText dataset, or load a pre-trained tokenizer from file.
+Train a tokenizer on the WebText dataset.
 See: https://huggingface.co/docs/tokenizers/quicktour
 """
-def train_or_load_tokenizer(file_path="webtext/tokenizer.json", extracted_dir=WEBTEXT_EXTRACTED_FOLDER, force=False):
+def train_tokenizer(file_path="webtext/tokenizer.json", extracted_dir=WEBTEXT_EXTRACTED_FOLDER, force=False):
     tokenizer = Tokenizer(models.BPE(unk_token=None))
     tokenizer.normalizer = normalizers.NFC() # Relatively lossless normalization
     tokenizer.pre_tokenizer = pre_tokenizers.ByteLevel(prefix_space=True)
     tokenizer.decoder = decoders.ByteLevel()
-    tokenizer.sep_token = "[SEP]"
-    tokenizer.mask_token = "[MASK]"
-    tokenizer.pad_token = "[PAD]"
     if pathlib.Path(file_path).exists() and not force:
-        print("Loading tokenizer from file...")
-        tokenizer = Tokenizer.from_file(file_path)
+        print("Tokenizer already exists at that path! Use force=True to overwrite.")
     else:
         print("Training tokenizer...")
         trainer = trainers.BpeTrainer(
@@ -119,6 +116,13 @@ def train_or_load_tokenizer(file_path="webtext/tokenizer.json", extracted_dir=WE
         print("Saving tokenizer to file...")
         tokenizer.save(file_path)
     return tokenizer
+
+def load_tokenizer(file_path="webtext/tokenizer.json"):
+    plain_tokenizer = Tokenizer.from_file(file_path)
+    fast_tokenizer = transformers.PreTrainedTokenizerFast(tokenizer_object=plain_tokenizer)
+    # add special tokens
+    fast_tokenizer.add_special_tokens({"pad_token": "[PAD]", "mask_token": "[MASK]", "sep_token": "[SEP]"})
+    return fast_tokenizer
 
 
 """
@@ -137,9 +141,9 @@ def filter_and_batch_encode(documents, tokenizer=None):
         return documents
 
     # Tokenization & filtering non-compressible documents
-    encoded_docs = tokenizer.encode_batch(documents, add_special_tokens=False)
-    encoded_docs = [doc for i, doc in enumerate(encoded_docs) if len(doc.ids) < 0.3 * len(documents[i])]
-    return [doc.ids for doc in encoded_docs]
+    encoded_docs = tokenizer(documents, add_special_tokens=False).input_ids
+    encoded_docs = [doc for i, doc in enumerate(encoded_docs) if len(doc) < 0.3 * len(documents[i])]
+    return encoded_docs
 
 """
 Get a subset of the WebText dataset to train/validate on.
@@ -148,8 +152,8 @@ See: https://openwebtext2.readthedocs.io/en/latest/
 """
 def load_and_prep_webtext(train_tokens=10 * BILLION, val_frac=0.01, max_seq_len=128, 
                             train_npy_file="webtext/webtext_train.bin", val_npy_file="webtext/webtext_val.bin", force=False):
-    tokenizer = train_or_load_tokenizer(file_path="webtext/tokenizer.json")
-    sep_token_id = tokenizer.token_to_id("[SEP]")
+    tokenizer = load_tokenizer(file_path="webtext/tokenizer.json")
+    sep_token_id = tokenizer.convert_tokens_to_ids("[SEP]")
     train_file = open(train_npy_file, "wb+")
     val_file = open(val_npy_file, "wb+")
     total_tokens_needed = train_tokens + int(val_frac * train_tokens)
@@ -181,20 +185,21 @@ def load_and_prep_webtext(train_tokens=10 * BILLION, val_frac=0.01, max_seq_len=
     print(f"Saved {len(val_tokens) / math.pow(10, 6)}m tokens to {val_npy_file}.")
     print("Done!")
 
-def get_masked_tokens(tokens, vocab_size, mask_token_id, mask_prob=0.15, 
-                        random_prob=0.1, orig_prob=0.1):
-    mask = np.random.choice([0, 1], size=tokens.shape, p=[1 - mask_prob, mask_prob])
-    mask_variations = np.random.choice([0, 1, 2], size=tokens.shape, p=[1 - random_prob - orig_prob, random_prob, orig_prob])
-    random_tokens = np.random.randint(vocab_size, size=tokens.shape)
+# def get_masked_tokens(tokens, vocab_size, mask_token_id, mask_prob=0.15, 
+#                         random_prob=0.1, orig_prob=0.1):
+#     mask = np.random.choice([0, 1], size=tokens.shape, p=[1 - mask_prob, mask_prob])
+#     mask_variations = np.random.choice([0, 1, 2], size=tokens.shape, p=[1 - random_prob - orig_prob, random_prob, orig_prob])
+#     random_tokens = np.random.randint(vocab_size, size=tokens.shape)
 
-    # 0: regular mask, 1: random token, 2: original token
-    masked_tokens = np.where(np.logical_and(mask == 1, mask_variations == 0), mask_token_id, tokens)
-    masked_tokens = np.where(np.logical_and(mask == 1, mask_variations == 1), random_tokens, masked_tokens)
-    return masked_tokens, mask
+#     # 0: regular mask, 1: random token, 2: original token
+#     masked_tokens = np.where(np.logical_and(mask == 1, mask_variations == 0), mask_token_id, tokens)
+#     masked_tokens = np.where(np.logical_and(mask == 1, mask_variations == 1), random_tokens, masked_tokens)
+#     return masked_tokens, mask
 
+
+# If debug is True, will return original tokens, along with masked tokens and target.
 class BERTDataset(torch.utils.data.IterableDataset):
-    def __init__(self, raw_data_path, vocab_size, seq_len, mask_token_id,
-                    mask_prob=0.15, random_prob=0.1, orig_prob=0.1, max_seqs=0, loop=False):
+    def __init__(self, raw_data_path, tokenizer, seq_len, mask_prob=0.15, max_seqs=0, loop=False, debug=False):
         super().__init__()
 
         # Params for mmap to raw data file
@@ -204,18 +209,13 @@ class BERTDataset(torch.utils.data.IterableDataset):
         self.n_seqs = self.usable_bytes // self.bytes_per_seq
         if max_seqs > 0:
             self.n_seqs = min(self.n_seqs, max_seqs)
+        self.loop = loop
+        self.debug = debug
         print(f"Loading {self.n_seqs} sequences of length {seq_len} from {raw_data_path}.")
         
-        # Params for masking function
-        self.mask_token_id = mask_token_id
-        self.vocab_size = vocab_size
-        self.seq_len = seq_len
-        self.mask_prob = mask_prob
-        self.random_prob = random_prob
-        self.orig_prob = orig_prob
-        self.mask_token_id = mask_token_id
-        self.loop = loop
-
+        # Collator
+        self.collator = transformers.DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=True, mlm_probability=mask_prob)
+        
     def mmap_iterator(self, start_seq, end_seq):
         raw_data_file = open(self.raw_data_path, "r+b")
         mm = mmap(raw_data_file.fileno(), 0, access=ACCESS_READ)
@@ -229,15 +229,22 @@ class BERTDataset(torch.utils.data.IterableDataset):
                 else:
                     return
             seq_bytes = mm.read(self.bytes_per_seq)
-            targets = np.frombuffer(seq_bytes, dtype=np.uint16)
-            inputs, mask = get_masked_tokens(targets, self.vocab_size, self.mask_token_id,
-                mask_prob=self.mask_prob, random_prob=self.random_prob, orig_prob=self.orig_prob)
-
-            yield (
-                torch.LongTensor(inputs.astype(np.int64)), 
-                torch.LongTensor(targets.astype(np.int64)), 
-                torch.BoolTensor(mask.astype(np.bool))
-            )
+            np_inputs = np.frombuffer(seq_bytes, dtype=np.uint16).astype(np.int64)
+            as_tensor = torch.LongTensor(np_inputs)
+            if self.debug:
+                orig_inputs = as_tensor.clone()
+            inputs, targets = self.collator.torch_mask_tokens(as_tensor.reshape(1, -1))
+            if self.debug:
+                yield (
+                    inputs.reshape(-1),
+                    targets.reshape(-1),
+                    orig_inputs.reshape(-1)
+                )
+            else:
+                yield (
+                    inputs.reshape(-1), 
+                    targets.reshape(-1)
+                )
 
     def __iter__(self):
         worker_info = torch.utils.data.get_worker_info()
@@ -252,6 +259,18 @@ class BERTDataset(torch.utils.data.IterableDataset):
             iter_end = min(iter_start + seqs_per_worker, self.n_seqs)
             print(f"Worker {worker_id} assigned sequences {iter_start} to {iter_end}")
         return iter(self.mmap_iterator(iter_start, iter_end))
+
+    def get_random_seq(self, masked=False):
+        raw_data_file = open(self.raw_data_path, "r+b")
+        mm = mmap(raw_data_file.fileno(), 0, access=ACCESS_READ)
+        seq_pos = random.randint(0, self.n_seqs - 1) * self.bytes_per_seq
+        mm.seek(seq_pos)
+        seq_bytes = mm.read(self.bytes_per_seq)
+        np_inputs = np.frombuffer(seq_bytes, dtype=np.uint16).astype(np.int64)
+        seq = torch.LongTensor(np_inputs)
+        if masked:
+            seq = self.collator.torch_mask_tokens(seq.reshape(1, -1))[0].reshape(-1)
+        return seq
 
 if __name__ == "__main__":
     download_webtext()
