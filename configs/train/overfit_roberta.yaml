@@ -15,8 +15,7 @@ use_checkpointing: False
 # data
 train_path: "/content/drive/My Drive/webtext_train.bin"
 val_path: "/content/drive/My Drive/webtext_val.bin"
-mask_token_id: 1 # id of mask token in vocab
-vocab_size: 32768 # vocab size for data/tokenizer
+tokenizer_path: "/content/cramBERT/webtext/tokenizer.json"
 micro_batch_size: 32 # 128 or 256 whatever fits in memory
 max_batch_size: 32 # recommended 4096
 anneal_batch_size: False # whether to anneal batch size

@@ -18,7 +18,7 @@ from tqdm import tqdm
 import torch
 import torch.nn as nn
 import numpy as np
-from data import BERTDataset
+from data import BERTDataset, load_tokenizer
 from dataclasses import dataclass
 from model import BERT, HuggingFaceRoBERTa, BERTConfig
 import bitsandbytes as bnb
@@ -42,8 +42,7 @@ class TrainConfig:
     # data
     train_path: str
     val_path: str
-    mask_token_id: int # id of mask token in vocab
-    vocab_size: int # vocab size for data/tokenizer
+    tokenizer_path: str
     micro_batch_size: int # 128 or 256 whatever fits in memory
     max_batch_size: int # recommended 4096
     anneal_batch_size: bool # whether to anneal batch size
@@ -92,21 +91,23 @@ def train_bert(bert_config, train_config):
     if isinstance(train_config, str):
         train_config = TrainConfig.from_yaml(train_config)
     
+    # Get tokenizer
+    tokenizer = load_tokenizer(train_config.tokenizer_path)
+
     # Initialize data
     train_dataset = BERTDataset(
         train_config.train_path, 
-        train_config.vocab_size,
+        tokenizer,
         bert_config.max_seq_len,
-        train_config.mask_token_id,
         max_seqs = train_config.max_train_seqs,
         loop = True
     )
+
     if train_config.do_eval:
         val_dataset = BERTDataset(
             train_config.val_path, 
-            train_config.vocab_size,
+            tokenizer,
             bert_config.max_seq_len,
-            train_config.mask_token_id,
             max_seqs = train_config.max_val_seqs,
             loop = False
         )
