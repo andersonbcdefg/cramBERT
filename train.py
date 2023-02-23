@@ -260,7 +260,7 @@ def train_bert(bert_config, train_config):
             running_batch_loss = 0
             print("Training step: ", training_step)
             accum_iters =  train_config.batch_size_schedule[training_step] // train_config.micro_batch_size
-            print("new accum_iters", accum_iters")
+            print("new accum_iters", accum_iters)
             if training_step == train_config.total_steps:
                 break
             optimizer.zero_grad(set_to_none=True)
