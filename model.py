@@ -53,6 +53,7 @@ class BERT(nn.Module):
             config.ffn_hidden_size) for _ in range(config.n_layers)])
         self.norm = LayerNorm(config.d_model, weight=True, bias=False)
         self.fc = nn.Linear(config.d_model, config.vocab_size, bias=False)
+        self.initializer_range = config.initializer_range
 
         if config.tie_weights:
             self.fc.weight = self.token_emb.weight
@@ -79,7 +80,7 @@ class BERT(nn.Module):
     # Borrowed from Karpathy's nanoGPT 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=config.initializer_range)
+            torch.nn.init.normal_(module.weight, mean=0.0, std=self.initializer_range)
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
         # no longer necessary since we're using StableEmbedding
