@@ -1,3 +1,4 @@
+  model: "BERT"
   vocab_size: 32768
   n_layers: 12
   max_seq_len: 128

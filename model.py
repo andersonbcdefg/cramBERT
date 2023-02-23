@@ -10,6 +10,7 @@ import transformers
 
 @dataclass
 class BERTConfig:
+    model: str
     vocab_size: int
     n_layers: int
     max_seq_len: int

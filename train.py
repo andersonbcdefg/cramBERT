@@ -139,9 +139,9 @@ def train_bert(bert_config, train_config):
     if num_gpus > 1:
         raise NotImplementedError("Multi-GPU training not implemented.")
     device = torch.device('cuda' if torch.cuda.is_available() and num_gpus > 0 else 'cpu')
-    if train_config.model == "mine":
+    if bert_config.model == "BERT":
         model = BERT(bert_config)
-    elif train_config.model == "huggingface":
+    elif train_config.model == "RoBERTa":
         model = HuggingFaceRoBERTa(bert_config)
     model.to(device)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=train_config.micro_batch_size, shuffle=False, num_workers=train_config.train_workers, pin_memory=num_gpus > 0)
@@ -212,6 +212,7 @@ def train_bert(bert_config, train_config):
         del x, y, micro_batch_loss, normalized_loss
         # Once microbatches accumulated, take a step
         if micro_batches == accum_iters:
+            scaler.unscale_(optimizer) # you FUCKING DONKEY
             torch.nn.utils.clip_grad_norm_(model.parameters(), train_config.max_grad_norm)
             scaler.step(optimizer)
             scaler.update()
@@ -254,14 +255,13 @@ def train_bert(bert_config, train_config):
                 model.train()
                 del x, y, loss, val_loss
             training_step += 1
+            if training_step == train_config.total_steps:
+                break
             micro_batches = 0
             running_batch_loss = 0
             accum_iters =  train_config.batch_size_schedule[training_step] // train_config.micro_batch_size
-            if training_step == train_config.total_steps:
-                break
             optimizer.zero_grad(set_to_none=True)
-    torch.save(model.state_dict(), f"{train_config.save_dir}/final.pt")
-    
+    torch.save(model.state_dict(), f"{train_config.save_dir}/final.pt") 
 
 if __name__ == '__main__':
     fire.Fire(train_bert)
