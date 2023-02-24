@@ -17,13 +17,13 @@ tokenizer_path: "/content/cramBERT/webtext/tokenizer.json"
 micro_batch_size: 256 # 128 or 256 whatever fits in memory
 max_batch_size: 4096 # recommended 4096
 anneal_batch_size: True # whether to anneal batch size
-batch_size_anneal_frac: 0.3 # what fraction of training examples to use for batch-size annealing
+batch_size_anneal_frac: 0.8 # what fraction of training examples to use for batch-size annealing
 
 # one-cycle lr schedule
-pct_start: 0.3
-max_lr: 1.0e-3
-start_div_factor: 1.0e+3
-end_div_factor: 2.5e+3
+pct_start: 0.4
+max_lr: 6.0e-4
+start_div_factor: 1.0e+4
+end_div_factor: 2.5e+4
 
 # optimizer
 optimizer: AdamW
