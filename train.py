@@ -171,7 +171,7 @@ def train_bert(bert_config, train_config):
         pct_start=train_config.pct_start, 
         div_factor=train_config.start_div_factor, 
         final_div_factor=train_config.end_div_factor,
-        anneal_strategy=train_config.anneal_strategy,
+        anneal_strategy="cos" if train_config.anneal_strategy == "cosine" else "linear",
         three_phase=False
     )
     scaler = torch.cuda.amp.GradScaler(enabled=train_config.use_amp)
