@@ -17,7 +17,7 @@ I further depart from the Cramming paper in my decision to use a byte-level BPE 
 ## Model Architecture
 My implementation of BERT is quite similar to the [original paper]([https://arxiv](https://arxiv.org/abs/1810.04805)) by Devlin et al., with some tweaks suggested by more recent research. Some of these are identified in the Cramming paper, and many are now commonplace in the most recent wave of Transformer models.
 
-* I use the same basic 12-layer setup as the original BERT paper, with 768-dimensional embeddings and 12 attention heads. As is now common, I place LayerNorm modules before, rather than after, each attention and feed-forward sublayer, which improves training stability.
+* I use the same basic 12-layer BERT-base setup as the original BERT paper, with 768-dimensional embeddings and 12 attention heads. As is now common, I place LayerNorm modules before, rather than after, each attention and feed-forward sublayer, which improves training stability.
 * For simplicity, I use learned absolute position embeddings. This means my model will not generalize beyond the sequence length used for training (128 tokens), but recent work on positional encoding (e.g. [Press, Smith, & Lewis, 2021](https://arxiv.org/abs/2108.12409)) finds that sinusoidal embeddings don't generalize well to longer sequences either.
 * The feed-forward networks in my Transformer use the [Gated Linear Units](https://arxiv.org/abs/2002.05202) proposed by Noam Shazeer (2020). Following this paper, I reduce the feed-forward hidden size to 2,048 (rather than 3,072) to maintain the same number of parameters.
 * I omit biases for all feed-forward layers, including the query-key-value projections in the attention sublayer. I also omit the bias in the affine transformations that follow LayerNorms. Omitting bias is a common practice in recent Transformer models, and is suggested in the Cramming paper as a way to simplify and speed up training, without substantially reducing the *size* of the model (which tends to hurt performance).
@@ -40,4 +40,4 @@ So far, I've achieved a MLM loss of around 1.9! I plan to fine-tune and evaluate
 Links are in the text above. I'll put a full bibliography here when I get a chance.
 
 # Acknowledgments
-Special thanks to Jonas Geiping, an author of the Cramming paper who was exceptionally helpful and kind in answering my questions about the paper, code, and training details.
+Special thanks to Jonas Geiping, an author of the Cramming paper who was exceptionally helpful and kind in answering my questions about the paper, code, and training details. I also owe thanks to Andrej Karpathy and Phil Wang (`lucidrains` on GitHub), whose clear Transformer implementations have been a huge help in understanding how to build one myself. I learned and borrowed so many tricks from reading their code—you should do the same!
