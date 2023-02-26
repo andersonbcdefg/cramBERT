@@ -41,6 +41,7 @@ class TrainConfig:
     train_path: str
     val_path: str
     tokenizer_path: str
+    in_memory: bool # whether to load all data into CPU memory
     micro_batch_size: int # 128 or 256 whatever fits in memory
     max_batch_size: int # recommended 4096
     anneal_batch_size: bool # whether to anneal batch size

@@ -199,7 +199,8 @@ def load_and_prep_webtext(train_tokens=10 * BILLION, val_frac=0.01, max_seq_len=
 
 # If debug is True, will return original tokens, along with masked tokens and target.
 class BERTDataset(torch.utils.data.IterableDataset):
-    def __init__(self, raw_data_path, tokenizer, seq_len, mask_prob=0.15, max_seqs=0, loop=False, debug=False):
+    def __init__(self, raw_data_path, tokenizer, seq_len, mask_prob=0.15, max_seqs=0, 
+        loop=False, debug=False):
         super().__init__()
 
         # Params for mmap to raw data file
@@ -271,6 +272,46 @@ class BERTDataset(torch.utils.data.IterableDataset):
         if masked:
             seq = self.collator.torch_mask_tokens(seq.reshape(1, -1))[0].reshape(-1)
         return seq
+
+class InMemoryBERTDataset(torch.utils.data.Dataset):
+    def __init__(self, raw_data_path, tokenizer, seq_len, mask_prob=0.15, max_seqs=0, 
+        loop=False, debug=False):
+        super().__init__()
+
+        # Params for mmap to raw data file
+        bytes_per_seq = seq_len * 2
+        n_seqs = os.path.getsize(raw_data_path) // self.bytes_per_seq
+        if max_seqs > 0:
+            self.n_seqs = min(self.n_seqs, max_seqs)
+        self.loop = loop
+        self.debug = debug
+        print(f"Loading {self.n_seqs} sequences of length {seq_len} from {raw_data_path}.")
+        raw_data = np.memmap(raw_data_path, dtype=np.uint16, mode="r")
+        self.data = torch.ShortTensor(raw_data.astype(np.int16)).reshape(-1, seq_len)
+        
+        # Collator
+        self.collator = transformers.DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=True, mlm_probability=mask_prob)
+        
+    def __getitem__(self, idx):
+        seq = self.data[idx]
+        if self.debug:
+            orig_inputs = seq.clone()
+        inputs, targets = self.collator.torch_mask_tokens(seq.reshape(1, -1))
+        if self.debug:
+            return (
+                inputs.reshape(-1),
+                targets.reshape(-1),
+                orig_inputs.reshape(-1)
+            )
+        else:
+            return (
+                inputs.reshape(-1), 
+                targets.reshape(-1)
+            )
+
+    def __len__(self):
+        return self.data.shape[0]
+
 
 if __name__ == "__main__":
     download_webtext()

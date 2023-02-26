@@ -4,7 +4,7 @@ epochs: 1
 do_eval: True
 max_val_seqs: 64000
 gpus: 1 # number of gpus to use
-train_workers: 2 # number of workers for train_dataloader
+train_workers: 1 # number of workers for train_dataloader
 
 # other training config
 use_amp: True
@@ -14,17 +14,18 @@ use_checkpointing: False
 train_path: "/content/drive/My Drive/webtext_train.bin"
 val_path: "/content/drive/My Drive/webtext_val.bin"
 tokenizer_path: "/content/cramBERT/webtext/tokenizer.json"
+in_memory: False
 micro_batch_size: 256 # 128 or 256 whatever fits in memory
 max_batch_size: 4096 # recommended 4096
 anneal_batch_size: True # whether to anneal batch size
 batch_size_anneal_frac: 0.8 # what fraction of training examples to use for batch-size annealing
 
 # one-cycle lr schedule
-pct_start: 0.05 # quick warmup, long annealing to 10% of max learning rate -- not following "superconvergence" that didn't work
-max_lr: 2.0e-4
+pct_start: 0.02 # quick warmup, long annealing to nearly 0 -- not following "superconvergence" that didn't work
+max_lr: 1.5e-4
 start_div_factor: 1.0e+3
-end_div_factor: 1.0e+1
-anneal_strategy: "cosine"
+end_div_factor: 1.0e+4
+anneal_strategy: "linear"
 
 # optimizer
 optimizer: AdamW
