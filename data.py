@@ -281,14 +281,14 @@ class InMemoryBERTDataset(torch.utils.data.Dataset):
         self.debug = debug
         print(f"Loading {self.n_seqs} sequences of length {seq_len} from {raw_data_path}.")
         raw_data = np.memmap(raw_data_path, dtype=np.uint16, mode="r")
-        self.data = torch.ShortTensor(raw_data.astype(np.int16)).reshape(-1, seq_len)
+        self.data = torch.ShortTensor(raw_data.astype(np.int16), device=torch.device("cpu")).reshape(-1, seq_len)
         del raw_data
         
         # Collator
         self.collator = transformers.DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=True, mlm_probability=mask_prob)
         
     def __getitem__(self, idx):
-        seq = self.data[idx].long()
+        seq = self.data[idx].long(device=torch.device("cpu"))
         if self.debug:
             orig_inputs = seq.clone()
         inputs, targets = self.collator.torch_mask_tokens(seq.reshape(1, -1))
