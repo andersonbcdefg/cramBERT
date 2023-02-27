@@ -20,7 +20,7 @@ from tqdm import tqdm
 import torch
 import torch.nn as nn
 import numpy as np
-from data import BERTDataset, load_tokenizer
+from data import InMemoryBERTDataset, BERTDataset, load_tokenizer
 from dataclasses import dataclass
 from model import BERT, HuggingFaceRoBERTa, BERTConfig
 import bitsandbytes as bnb
