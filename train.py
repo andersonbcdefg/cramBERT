@@ -155,7 +155,7 @@ def train_bert(bert_config, train_config):
             val_dataset, 
             batch_size=train_config.max_batch_size,
             shuffle=False,
-            num_workers=train_config.num_workers,
+            num_workers=train_config.train_workers,
             pin_memory=True
         )
 
