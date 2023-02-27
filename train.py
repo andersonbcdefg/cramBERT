@@ -9,6 +9,7 @@
 # TODO: consider gradient checkpointing
 # TODO: from Cramming, sort training data by prevalence (pseudo-curriculum learning)
 import os
+import pathlib
 import time
 import sys
 import wandb
@@ -210,6 +211,7 @@ def train_bert(bert_config, train_config):
     for epoch in range(train_config.epochs):
         train_seqs_so_far = 0
         for train_file in train_files:
+            print("Training on file: ", train_file)
             del train_dataset
             del train_loader
             if train_seqs_so_far >= train_config.max_train_seqs:

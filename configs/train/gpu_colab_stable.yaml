@@ -36,7 +36,7 @@ weight_decay: 1.0e-2
 max_grad_norm: 0.5
 fused: False
 eight_bit: True
-loss_spike_threshold: 1.5
+loss_spike_threshold: 1.25
 
 # logging, eval, & checkpointing
 use_wandb: True
