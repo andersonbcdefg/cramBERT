@@ -204,7 +204,7 @@ def train_bert(bert_config, train_config):
     # Training loop
     train_dataset = None
     train_loader = None
-    running_previous_loss = -math.log(1.0 / train_config.vocab_size) # initialize to maximum entropy
+    running_previous_loss = -math.log(1.0 / bert_config.vocab_size) # initialize to maximum entropy
     training_step = 0
     micro_batches = 0
     running_batch_loss = 0
