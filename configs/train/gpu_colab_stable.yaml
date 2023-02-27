@@ -4,17 +4,18 @@ epochs: 1
 do_eval: True
 max_val_seqs: 64000
 gpus: 1 # number of gpus to use
-train_workers: 1 # number of workers for train_dataloader
+train_workers: 4 # number of workers for train_dataloader
 
 # other training config
 use_amp: True
 use_checkpointing: False
 
 # data
-train_path: "/content/drive/My Drive/webtext_train.bin"
+train_path: "/content/drive/My Drive/train_split/"
 val_path: "/content/drive/My Drive/webtext_val.bin"
 tokenizer_path: "/content/cramBERT/webtext/tokenizer.json"
-in_memory: False
+seq_len: 128
+in_memory: True
 micro_batch_size: 256 # 128 or 256 whatever fits in memory
 max_batch_size: 4096 # recommended 4096
 anneal_batch_size: True # whether to anneal batch size
@@ -25,7 +26,7 @@ pct_start: 0.02 # quick warmup, long annealing to nearly 0 -- not following "sup
 max_lr: 1.5e-4
 start_div_factor: 1.0e+3
 end_div_factor: 1.0e+4
-anneal_strategy: "linear"
+anneal_strategy: "cosine"
 
 # optimizer
 optimizer: AdamW
@@ -35,6 +36,7 @@ weight_decay: 1.0e-2
 max_grad_norm: 0.5
 fused: False
 eight_bit: True
+loss_spike_threshold: 1.5
 
 # logging, eval, & checkpointing
 use_wandb: True
