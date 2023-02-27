@@ -233,7 +233,7 @@ def train_bert(bert_config, train_config):
                 train_dataset, 
                 batch_size=train_config.max_batch_size,
                 shuffle=True,
-                num_workers=train_config.num_workers,
+                num_workers=train_config.train_workers,
                 pin_memory=True
             )
             for x, y in train_loader:
