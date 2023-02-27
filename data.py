@@ -288,21 +288,21 @@ class InMemoryBERTDataset(torch.utils.data.Dataset):
         self.collator = transformers.DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=True, mlm_probability=mask_prob)
         
     def __getitem__(self, idx):
-        seq = self.data[idx]
+        seq = self.data[idx].long()
         if self.debug:
             orig_inputs = seq.clone()
         inputs, targets = self.collator.torch_mask_tokens(seq.reshape(1, -1))
         if self.debug:
             return (
                 # set to long tensor instead of short to avoid error
-                inputs.reshape(-1).long(),
-                targets.reshape(-1).long(),
-                orig_inputs.reshape(-1).long()
+                inputs.reshape(-1),
+                targets.reshape(-1),
+                orig_inputs.reshape(-1)
             )
         else:
             return (
-                inputs.reshape(-1).long(), 
-                targets.reshape(-1).long()
+                inputs.reshape(-1), 
+                targets.reshape(-1)
             )
 
     def __len__(self):
