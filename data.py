@@ -294,14 +294,15 @@ class InMemoryBERTDataset(torch.utils.data.Dataset):
         inputs, targets = self.collator.torch_mask_tokens(seq.reshape(1, -1))
         if self.debug:
             return (
-                inputs.reshape(-1),
-                targets.reshape(-1),
-                orig_inputs.reshape(-1)
+                # set to long tensor instead of short to avoid error
+                inputs.reshape(-1).long(),
+                targets.reshape(-1).long(),
+                orig_inputs.reshape(-1).long()
             )
         else:
             return (
-                inputs.reshape(-1), 
-                targets.reshape(-1)
+                inputs.reshape(-1).long(), 
+                targets.reshape(-1).long()
             )
 
     def __len__(self):
