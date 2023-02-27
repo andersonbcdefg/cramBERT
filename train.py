@@ -262,6 +262,7 @@ def train_bert(bert_config, train_config):
                     else:
                         scaler.step(optimizer)
                         scaler.update()
+                        previous_loss = running_batch_loss
                     if train_config.use_wandb:
                         wandb.log({
                             "batch_train_loss": running_batch_loss,
