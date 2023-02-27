@@ -11,8 +11,8 @@ use_amp: True
 use_checkpointing: False
 
 # data
-train_path: "/content/drive/My Drive/train_split/"
-val_path: "/content/drive/My Drive/webtext_val.bin"
+train_path: "/content/drive/My Drive/cramBERT/train_split/"
+val_path: "/content/drive/My Drive/cramBERT/webtext_val.bin"
 tokenizer_path: "/content/cramBERT/webtext/tokenizer.json"
 seq_len: 128
 in_memory: True
