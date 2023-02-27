@@ -219,7 +219,7 @@ class BERTDataset(torch.utils.data.IterableDataset):
         # Collator
         self.collator = transformers.DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=True, mlm_probability=mask_prob)
         
-    def file_iterator(self, start_seq, end_seq):
+    def mmap_iterator(self, start_seq, end_seq):
         raw_data_file = open(self.raw_data_path, "r+b")
         mm = mmap(raw_data_file.fileno(), 0, access=ACCESS_READ)
         start_pos, end_pos = start_seq * self.bytes_per_seq, end_seq * self.bytes_per_seq
