@@ -250,12 +250,13 @@ def train_bert(bert_config, train_config):
                 # Skip microbatch if loss spikes / NaNs
                 if micro_batch_loss.item() > running_previous_loss * train_config.loss_spike_threshold or torch.isnan(micro_batch_loss).item():
                     print(f"Loss spike detected, skipping microbatch.")
-                    continue
                 else:
                     normalized_loss = micro_batch_loss / accum_iters
                     running_batch_loss += normalized_loss.item()
                     scaler.scale(normalized_loss).backward()
                     micro_batches += 1
+                    del normalized_loss
+                del x, y, micro_batch_loss
                 
                 # Scheduler always takes a step, because it's based on total amount of data
                 scheduler.step()
