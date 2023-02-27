@@ -275,7 +275,7 @@ class InMemoryBERTDataset(torch.utils.data.Dataset):
     def __init__(self, raw_data_path, tokenizer, seq_len, mask_prob=0.15, max_seqs=0, debug=False):
         super().__init__()
         bytes_per_seq = seq_len * 2
-        n_seqs = os.path.getsize(raw_data_path) // bytes_per_seq
+        self.n_seqs = os.path.getsize(raw_data_path) // bytes_per_seq
         if max_seqs > 0:
             self.n_seqs = min(self.n_seqs, max_seqs)
         self.debug = debug
