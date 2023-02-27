@@ -67,6 +67,7 @@ class TrainConfig:
     fused: bool # whether to use fused adam (adamw not supported in stable pytorch yet)
     eight_bit: bool # whether to use 8-bit adam
     loss_spike_threshold: float # threshold for detecting loss spikes
+    max_microbatch_skips: int # max number of microbatches to skip before stopping training
 
     # logging, eval, & checkpointing
     use_wandb: bool
@@ -204,6 +205,7 @@ def train_bert(bert_config, train_config):
     # Training loop
     train_dataset = None
     train_loader = None
+    microbatch_skips = 0
     running_previous_loss = -math.log(1.0 / bert_config.vocab_size) # initialize to maximum entropy
     training_step = 0
     micro_batches = 0
@@ -248,16 +250,24 @@ def train_bert(bert_config, train_config):
                             "microbatch_train_loss": micro_batch_loss.item()
                         })
                 # Skip microbatch if loss spikes / NaNs
-                if micro_batch_loss.item() > running_previous_loss * train_config.loss_spike_threshold or torch.isnan(micro_batch_loss).item():
-                    print(f"Loss spike detected, skipping microbatch.")
+                if micro_batch_loss.item() > running_previous_loss * train_config.loss_spike_threshold:
+                    print(f"Loss spike detected, skipping microbatch. (Reason: Loss = {micro_batch_loss.item()}")
+                    microbatch_skips += 1
+                elif torch.isnan(micro_batch_loss).item():
+                    print(f"Loss spike detected, skipping microbatch. (Reason: Loss = NaN)")
+                    microbatch_skips += 1
                 else:
                     normalized_loss = micro_batch_loss / accum_iters
                     running_batch_loss += normalized_loss.item()
                     scaler.scale(normalized_loss).backward()
                     micro_batches += 1
+                    microbatch_skips = 0
                     del normalized_loss
+                if microbatch_skips >= train_config.max_microbatch_skips:
+                    print("Too many microbatch skips, exiting training loop.")
+                    sys.exit(1)
                 del x, y, micro_batch_loss
-                
+
                 # Scheduler always takes a step, because it's based on total amount of data
                 scheduler.step()
                 
