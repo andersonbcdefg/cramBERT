@@ -16,6 +16,7 @@ import sys
 import wandb
 import fire
 import yaml
+import math
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -203,7 +204,7 @@ def train_bert(bert_config, train_config):
     # Training loop
     train_dataset = None
     train_loader = None
-    previous_loss = float("inf")
+    running_previous_loss = -math.log(1.0 / train_config.vocab_size) # initialize to maximum entropy
     training_step = 0
     micro_batches = 0
     running_batch_loss = 0
@@ -246,23 +247,31 @@ def train_bert(bert_config, train_config):
                         wandb.log({
                             "microbatch_train_loss": micro_batch_loss.item()
                         })
+                # Skip microbatch if loss spikes
+                if micro_batch_loss.item() > running_previous_loss * train_config.loss_spike_threshold:
+                    print(f"Loss spike detected, skipping microbatch.")
+                    continue
+                else:
                     normalized_loss = micro_batch_loss / accum_iters
                     running_batch_loss += normalized_loss.item()
-                scaler.scale(normalized_loss).backward()
-                micro_batches += 1
+                    scaler.scale(normalized_loss).backward()
+                    micro_batches += 1
+                
+                # Scheduler always takes a step, because it's based on total amount of data
                 scheduler.step()
-                del x, y, micro_batch_loss, normalized_loss
-                # Once microbatches accumulated, take a step
+                
+                # Once enough microbatches accumulated, take a step. No loss spike check here, since
+                # we already checked for spikes in the microbatches.
                 if micro_batches == accum_iters:
                     scaler.unscale_(optimizer)
                     torch.nn.utils.clip_grad_norm_(model.parameters(), train_config.max_grad_norm)
-                    # Take a step, unless there is a loss spike
-                    if running_batch_loss > previous_loss * train_config.loss_spike_threshold:
-                        print(f"Loss spike detected, skipping step {training_step}")
-                    else:
-                        scaler.step(optimizer)
-                        scaler.update()
-                        previous_loss = running_batch_loss
+                    scaler.step(optimizer)
+                    scaler.update()
+                    
+                    # Update previous loss using exponential moving average
+                    running_previous_loss = running_previous_loss * 0.5 + running_batch_loss * 0.5
+                    
+                    # Handle logging and validation
                     if train_config.use_wandb:
                         wandb.log({
                             "batch_train_loss": running_batch_loss,
@@ -270,8 +279,7 @@ def train_bert(bert_config, train_config):
                             "batch_size": train_config.batch_size_schedule[training_step]
                         })
                     if training_step % train_config.log_interval == 0:
-                        print(f"Step {training_step} | Train loss: {running_batch_loss:.4f} | LR: {scheduler.get_last_lr()[0]:.4f} | Batch size: {train_config.batch_size_schedule[training_step]}")
-                    del running_batch_loss
+                        print(f"Step {training_step} | Train loss: {running_batch_loss:.4f} | LR: {scheduler.get_last_lr()[0]:.5f} | Batch size: {train_config.batch_size_schedule[training_step]}")
                     if training_step % train_config.val_interval == 0 and train_config.do_eval:
                         model.eval()
                         val_steps = 0

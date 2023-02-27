@@ -1,0 +1,51 @@
+## This config uses a purposefully high learning rate to cause instability so i can test if loss spike handling works
+## without doing hours of training only to have it crash because I'm stupid and unscaled the optimizer twice.
+
+# training budget
+max_train_seqs: 78023355 # max number of training samples to use
+epochs: 1
+do_eval: True
+max_val_seqs: 64000
+gpus: 1 # number of gpus to use
+train_workers: 4 # number of workers for train_dataloader
+
+# other training config
+use_amp: True
+use_checkpointing: False
+
+# data
+train_path: "/content/drive/My Drive/cramBERT/train_split/"
+val_path: "/content/drive/My Drive/cramBERT/webtext_val.bin"
+tokenizer_path: "/content/cramBERT/webtext/tokenizer.json"
+seq_len: 128
+in_memory: True
+micro_batch_size: 256 # 128 or 256 whatever fits in memory
+max_batch_size: 4096 # recommended 4096
+anneal_batch_size: True # whether to anneal batch size
+batch_size_anneal_frac: 0.8 # what fraction of training examples to use for batch-size annealing
+
+# one-cycle lr schedule
+pct_start: 0.02 # quick warmup, long annealing to nearly 0 -- not following "superconvergence" that didn't work
+max_lr: 1.5e-4
+start_div_factor: 1.0e+3
+end_div_factor: 1.0e+4
+anneal_strategy: "cosine"
+
+# optimizer
+optimizer: AdamW
+b1: 0.9
+b2: 0.98
+weight_decay: 1.0e-2
+max_grad_norm: 0.5
+fused: False
+eight_bit: True
+loss_spike_threshold: 1.25
+
+# logging, eval, & checkpointing
+use_wandb: True
+wandb_project: "cramming"
+wandb_watch: True
+log_interval: 25
+val_interval: 1000
+save_interval: 1000
+save_dir: "/content/drive/My Drive/cramBERT/model_checkpoints/"
