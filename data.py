@@ -288,7 +288,7 @@ class InMemoryBERTDataset(torch.utils.data.Dataset):
         self.collator = transformers.DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=True, mlm_probability=mask_prob)
         
     def __getitem__(self, idx):
-        seq = self.data[idx].long(device=torch.device("cpu"))
+        seq = self.data[idx].long()
         if self.debug:
             orig_inputs = seq.clone()
         inputs, targets = self.collator.torch_mask_tokens(seq.reshape(1, -1))
