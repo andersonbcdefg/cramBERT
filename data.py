@@ -185,50 +185,48 @@ def load_and_prep_webtext(train_tokens=10 * BILLION, val_frac=0.01, max_seq_len=
     print(f"Saved {len(val_tokens) / math.pow(10, 6)}m tokens to {val_npy_file}.")
     print("Done!")
 
-# def get_masked_tokens(tokens, vocab_size, mask_token_id, mask_prob=0.15, 
-#                         random_prob=0.1, orig_prob=0.1):
-#     mask = np.random.choice([0, 1], size=tokens.shape, p=[1 - mask_prob, mask_prob])
-#     mask_variations = np.random.choice([0, 1, 2], size=tokens.shape, p=[1 - random_prob - orig_prob, random_prob, orig_prob])
-#     random_tokens = np.random.randint(vocab_size, size=tokens.shape)
+"""
+Split a dataset file into multiple smaller files, each containing a subset of the original data.
+"""
+def split_dataset_file(dataset_file, chunk_size=128 * 1000000, split_dir="webtext/train_split"):
+    if not os.path.exists(split_dir):
+        os.makedirs(split_dir)
+    dataset = np.memmap(dataset_file, dtype=np.uint16, mode="r")
+    num_splits = math.ceil(len(dataset) / chunk_size)
+    print(f"Splitting {dataset_file} into {num_splits} files of {chunk_size / math.pow(10, 6)}m tokens each.")
+    for i in range(num_splits):
+        split_file = os.path.join(split_dir, f"split_{i}.bin")
+        split = dataset[i * chunk_size : (i + 1) * chunk_size]
+        split.tofile(split_file)
+        print(f"Saved {len(split) / math.pow(10, 6)}m tokens to {split_file}.")
 
-#     # 0: regular mask, 1: random token, 2: original token
-#     masked_tokens = np.where(np.logical_and(mask == 1, mask_variations == 0), mask_token_id, tokens)
-#     masked_tokens = np.where(np.logical_and(mask == 1, mask_variations == 1), random_tokens, masked_tokens)
-#     return masked_tokens, mask
 
-
-# If debug is True, will return original tokens, along with masked tokens and target.
+"""
+Dataset that can point to either a single binary file. Expected format is a 
+binary file containing a 1-dimensional array of uint16 tokens.
+"""
 class BERTDataset(torch.utils.data.IterableDataset):
-    def __init__(self, raw_data_path, tokenizer, seq_len, mask_prob=0.15, max_seqs=0, 
-        loop=False, debug=False):
+    def __init__(self, raw_data_path, tokenizer, seq_len, mask_prob=0.15, max_seqs=0, debug=False):
         super().__init__()
-
-        # Params for mmap to raw data file
         self.raw_data_path = raw_data_path
-        self.bytes_per_seq = seq_len * 2
-        self.usable_bytes = os.path.getsize(raw_data_path) // self.bytes_per_seq * self.bytes_per_seq
-        self.n_seqs = self.usable_bytes // self.bytes_per_seq
+        bytes_per_seq = seq_len * 2
+        self.n_seqs = os.path.getsize(raw_data_path) // bytes_per_seq
         if max_seqs > 0:
             self.n_seqs = min(self.n_seqs, max_seqs)
-        self.loop = loop
         self.debug = debug
         print(f"Loading {self.n_seqs} sequences of length {seq_len} from {raw_data_path}.")
         
         # Collator
         self.collator = transformers.DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=True, mlm_probability=mask_prob)
         
-    def mmap_iterator(self, start_seq, end_seq):
+    def file_iterator(self, start_seq, end_seq):
         raw_data_file = open(self.raw_data_path, "r+b")
         mm = mmap(raw_data_file.fileno(), 0, access=ACCESS_READ)
         start_pos, end_pos = start_seq * self.bytes_per_seq, end_seq * self.bytes_per_seq
         mm.seek(start_pos)
         while True:
             # If we've reached end of assigned range, reset to start of range
-            if mm.tell() >= end_pos:
-                if self.loop:
-                    mm.seek(start_pos)
-                else:
-                    return
+            if mm.tell() >= end_pos: return     
             seq_bytes = mm.read(self.bytes_per_seq)
             np_inputs = np.frombuffer(seq_bytes, dtype=np.uint16).astype(np.int64)
             as_tensor = torch.LongTensor(np_inputs)
@@ -274,20 +272,17 @@ class BERTDataset(torch.utils.data.IterableDataset):
         return seq
 
 class InMemoryBERTDataset(torch.utils.data.Dataset):
-    def __init__(self, raw_data_path, tokenizer, seq_len, mask_prob=0.15, max_seqs=0, 
-        loop=False, debug=False):
+    def __init__(self, raw_data_path, tokenizer, seq_len, mask_prob=0.15, max_seqs=0, debug=False):
         super().__init__()
-
-        # Params for mmap to raw data file
         bytes_per_seq = seq_len * 2
-        n_seqs = os.path.getsize(raw_data_path) // self.bytes_per_seq
+        n_seqs = os.path.getsize(raw_data_path) // bytes_per_seq
         if max_seqs > 0:
             self.n_seqs = min(self.n_seqs, max_seqs)
-        self.loop = loop
         self.debug = debug
         print(f"Loading {self.n_seqs} sequences of length {seq_len} from {raw_data_path}.")
         raw_data = np.memmap(raw_data_path, dtype=np.uint16, mode="r")
         self.data = torch.ShortTensor(raw_data.astype(np.int16)).reshape(-1, seq_len)
+        del raw_data
         
         # Collator
         self.collator = transformers.DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=True, mlm_probability=mask_prob)

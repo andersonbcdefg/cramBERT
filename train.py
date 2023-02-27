@@ -35,13 +35,14 @@ class TrainConfig:
 
     # other training configs
     use_amp: bool # whether to use automatic mixed precision training
-    use_checkpointing: bool # whether to use gradient checkpointing
+    use_checkpointing: bool # whether to use gradient checkpointing -- not implemented yet
 
     # data
     train_path: str
     val_path: str
+    seq_len: int
     tokenizer_path: str
-    in_memory: bool # whether to load all data into CPU memory
+    in_memory: bool # whether to load all data from current fileinto CPU memory
     micro_batch_size: int # 128 or 256 whatever fits in memory
     max_batch_size: int # recommended 4096
     anneal_batch_size: bool # whether to anneal batch size
@@ -62,6 +63,7 @@ class TrainConfig:
     max_grad_norm: float
     fused: bool # whether to use fused adam (adamw not supported in stable pytorch yet)
     eight_bit: bool # whether to use 8-bit adam
+    loss_spike_threshold: float # threshold for detecting loss spikes
 
     # logging, eval, & checkpointing
     use_wandb: bool
@@ -94,46 +96,39 @@ def train_bert(bert_config, train_config):
     # Get tokenizer
     tokenizer = load_tokenizer(train_config.tokenizer_path)
 
-    # Initialize data
-    train_dataset = BERTDataset(
-        train_config.train_path, 
-        tokenizer,
-        bert_config.max_seq_len,
-        max_seqs = train_config.max_train_seqs,
-        loop = train_config.epochs > 1
-    )
-
-    if train_config.do_eval:
-        val_dataset = BERTDataset(
-            train_config.val_path, 
-            tokenizer,
-            bert_config.max_seq_len,
-            max_seqs = train_config.max_val_seqs,
-            loop = False
-        )
-
-    # Error check and calculate batch size schedule, total steps
-    n_train_seqs = train_dataset.n_seqs * train_config.epochs
+    # Calculate steps and prepare batch and LR schedules
+    train_is_split = pathlib.Path(train_config.train_path).is_dir()
+    bytes_per_seq = train_config.seq_len * 2
+    if train_is_split:
+        train_files = sorted(glob.glob(os.path.join(train_config.train_path, "*.bin")))
+        n_train_seqs = sum([
+            os.path.getsize(f) // bytes_per_seq for f in train_files
+        ])
+    else:
+        n_train_seqs = os.path.getsize(train_config.train_path) // bytes_per_seq
+        train_files = [train_config.train_path]
+    n_train_seqs = min(n_train_seqs, train_config.max_train_seqs)
+    n_train_seq_steps = n_train_seqs * train_config.epochs
     assert train_config.max_batch_size % train_config.micro_batch_size == 0,\
         f"Batch size {train_config.max_batch_size} must be divisible by micro batch size {train_config.micro_batch_size}"
     if train_config.anneal_batch_size:
-        anneal_budget = n_train_seqs * train_config.batch_size_anneal_frac
+        anneal_budget = n_train_seq_steps * train_config.batch_size_anneal_frac
         average_annealed_batch_size = (train_config.max_batch_size + train_config.micro_batch_size) // 2
         anneal_steps = int(anneal_budget // average_annealed_batch_size)
         batch_size_schedule = np.linspace(train_config.micro_batch_size, train_config.max_batch_size, anneal_steps)
         batch_size_schedule = np.round(batch_size_schedule / train_config.micro_batch_size) * train_config.micro_batch_size
         batch_size_schedule = batch_size_schedule.astype(int)
-        remaining_seqs = n_train_seqs - np.sum(batch_size_schedule)
-        remaining_steps = remaining_seqs // train_config.max_batch_size
-        batch_size_schedule = np.concatenate([batch_size_schedule, np.ones(remaining_steps) * train_config.max_batch_size])
+        remaining_seq_steps = n_train_seq_steps - np.sum(batch_size_schedule)
+        remaining_batch_steps = remaining_seq_steps // train_config.max_batch_size
+        batch_size_schedule = np.concatenate([batch_size_schedule, np.ones(remaining_batch_steps) * train_config.max_batch_size])
     else:
-        batch_size_schedule = np.ones(n_train_seqs // train_config.max_batch_size) * train_config.max_batch_size
+        batch_size_schedule = np.ones(n_train_seq_steps // train_config.max_batch_size) * train_config.max_batch_size
     train_config.batch_size_schedule = batch_size_schedule
     train_config.total_steps = len(batch_size_schedule)
     train_config.total_microbatches = int(np.sum(batch_size_schedule) // train_config.micro_batch_size)
     print(f"Training for {train_config.total_steps} steps.")
     
-    # Initialize model & data loaders
+    # Initialize model
     num_gpus = min(train_config.gpus, torch.cuda.device_count())
     if num_gpus > 1:
         raise NotImplementedError("Multi-GPU training not implemented.")
@@ -143,10 +138,24 @@ def train_bert(bert_config, train_config):
     elif train_config.model == "RoBERTa":
         model = HuggingFaceRoBERTa(bert_config)
     model.to(device)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=train_config.micro_batch_size, shuffle=False, num_workers=train_config.train_workers, pin_memory=num_gpus > 0)
-    val_loader = None
+
+    # If doing eval, set up val dataset/dataloader
     if train_config.do_eval:
-        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=train_config.micro_batch_size, shuffle=False, num_workers=train_config.train_workers, pin_memory=num_gpus > 0)
+        if train_config.val_path is None:
+            raise ValueError("Validation path must be provided if do_eval is True.")
+        val_dataset = BERTDataset(
+            train_config.val_path, 
+            tokenizer,
+            train_config.seq_len, 
+            max_seqs = train_config.max_val_seqs
+        )
+        val_dataloader = torch.utils.data.DataLoader(
+            val_dataset, 
+            batch_size=train_config.max_batch_size,
+            shuffle=False,
+            num_workers=train_config.num_workers,
+            pin_memory=True
+        )
 
     # Initialize optimizer, scheduler, and scaler
     assert train_config.optimizer in ["Adam", "AdamW"], "Only Adam and AdamW optimizers currently supported."
@@ -189,77 +198,115 @@ def train_bert(bert_config, train_config):
     if train_config.wandb_watch:
         wandb.watch(model, log="all")
 
-    # Training loop, with gradient accumulation
+    # Training loop
+    train_dataset = None
+    train_loader = None
+    previous_loss = float("inf")
     training_step = 0
     micro_batches = 0
     running_batch_loss = 0
     accum_iters =  train_config.batch_size_schedule[training_step] // train_config.micro_batch_size
     model.train()
-    for x, y in train_loader:
-        x, y = x.to(device), y.to(device)
-        with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=train_config.use_amp):
-            micro_batch_loss = model(x, targets=y)
-            if train_config.use_wandb:
-                wandb.log({
-                    "microbatch_train_loss": micro_batch_loss.item()
-                })
-            normalized_loss = micro_batch_loss / accum_iters
-            running_batch_loss += normalized_loss.item()
-        scaler.scale(normalized_loss).backward()
-        micro_batches += 1
-        scheduler.step()
-        del x, y, micro_batch_loss, normalized_loss
-        # Once microbatches accumulated, take a step
-        if micro_batches == accum_iters:
-            scaler.unscale_(optimizer) # you FUCKING DONKEY
-            torch.nn.utils.clip_grad_norm_(model.parameters(), train_config.max_grad_norm)
-            scaler.step(optimizer)
-            scaler.update()
-            if train_config.use_wandb:
-                wandb.log({
-                    "batch_train_loss": running_batch_loss,
-                    "lr": scheduler.get_last_lr()[0],
-                    "batch_size": train_config.batch_size_schedule[training_step]
-                })
-            if training_step % train_config.log_interval == 0:
-                print(f"Step {training_step} | Train loss: {running_batch_loss:.4f} | LR: {scheduler.get_last_lr()[0]:.4f} | Batch size: {train_config.batch_size_schedule[training_step]}")
-            del running_batch_loss
-            if training_step % train_config.val_interval == 0 and train_config.do_eval:
-                model.eval()
-                val_steps = 0
-                val_loss = 0
-                # start time
-                start = time.time()
-                with torch.no_grad():
-                    for x, y in val_loader:
-                        val_steps += 1
-                        with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=train_config.use_amp):
-                            x, y = x.to(device), y.to(device)
-                            loss = model(x, targets=y)
-                            val_loss += loss.item()
-                    val_loss /= val_steps
-                # end time
-                end = time.time()
-                if train_config.use_wandb:
-                    wandb.log({
-                        "val_loss": val_loss
-                    })
-                print(f"Step {training_step} | Val loss: {val_loss:.4f}")
-                print(f"Validation took {end - start:.2f} seconds for {val_steps} steps.")
-                print("Time per micro-batch: ", (end - start) / val_steps, " seconds")
-                print("Saving model...")
-                if not os.path.exists(train_config.save_dir):
-                    os.mkdir(train_config.save_dir)
-                torch.save(model.state_dict(), f"{train_config.save_dir}/{training_step}.pt")
-                model.train()
-                del x, y, loss, val_loss
-            training_step += 1
-            if training_step == train_config.total_steps:
+    for epoch in range(train_config.epochs):
+        train_seqs_so_far = 0
+        for train_file in train_files:
+            del train_dataset
+            del train_loader
+            if train_seqs_so_far >= train_config.max_train_seqs:
                 break
-            micro_batches = 0
-            running_batch_loss = 0
-            accum_iters =  train_config.batch_size_schedule[training_step] // train_config.micro_batch_size
-            optimizer.zero_grad(set_to_none=True)
+            if train_config.in_memory:
+                train_dataset = InMemoryBERTDataset(
+                    train_file, 
+                    tokenizer,
+                    train_config.seq_len
+                )
+            else:
+                train_dataset = BERTDataset(
+                    train_file, 
+                    tokenizer,
+                    train_config.seq_len
+                )
+            train_loader = torch.utils.data.DataLoader(
+                train_dataset, 
+                batch_size=train_config.max_batch_size,
+                shuffle=True,
+                num_workers=train_config.num_workers,
+                pin_memory=True
+            )
+            for x, y in train_loader:
+                if train_seqs_so_far >= train_config.max_train_seqs:
+                    break
+                x, y = x.to(device), y.to(device)
+                with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=train_config.use_amp):
+                    micro_batch_loss = model(x, targets=y)
+                    if train_config.use_wandb:
+                        wandb.log({
+                            "microbatch_train_loss": micro_batch_loss.item()
+                        })
+                    normalized_loss = micro_batch_loss / accum_iters
+                    running_batch_loss += normalized_loss.item()
+                scaler.scale(normalized_loss).backward()
+                micro_batches += 1
+                scheduler.step()
+                del x, y, micro_batch_loss, normalized_loss
+                # Once microbatches accumulated, take a step
+                if micro_batches == accum_iters:
+                    scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), train_config.max_grad_norm)
+                    # Take a step, unless there is a loss spike
+                    if running_batch_loss > previous_loss * train_config.loss_spike_threshold:
+                        print(f"Loss spike detected, skipping step {training_step}")
+                    else:
+                        scaler.step(optimizer)
+                        scaler.update()
+                    if train_config.use_wandb:
+                        wandb.log({
+                            "batch_train_loss": running_batch_loss,
+                            "lr": scheduler.get_last_lr()[0],
+                            "batch_size": train_config.batch_size_schedule[training_step]
+                        })
+                    if training_step % train_config.log_interval == 0:
+                        print(f"Step {training_step} | Train loss: {running_batch_loss:.4f} | LR: {scheduler.get_last_lr()[0]:.4f} | Batch size: {train_config.batch_size_schedule[training_step]}")
+                    del running_batch_loss
+                    if training_step % train_config.val_interval == 0 and train_config.do_eval:
+                        model.eval()
+                        val_steps = 0
+                        val_loss = 0
+                        # start time
+                        start = time.time()
+                        with torch.no_grad():
+                            for x, y in val_loader:
+                                val_steps += 1
+                                with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=train_config.use_amp):
+                                    x, y = x.to(device), y.to(device)
+                                    loss = model(x, targets=y)
+                                    val_loss += loss.item()
+                            val_loss /= val_steps
+                        # end time
+                        end = time.time()
+                        if train_config.use_wandb:
+                            wandb.log({
+                                "val_loss": val_loss
+                            })
+                        print(f"Step {training_step} | Val loss: {val_loss:.4f}")
+                        print(f"Validation took {end - start:.2f} seconds for {val_steps} steps.")
+                        print("Time per micro-batch: ", (end - start) / val_steps, " seconds")
+                        print("Saving model...")
+                        if not os.path.exists(train_config.save_dir):
+                            os.mkdir(train_config.save_dir)
+                        torch.save(model.state_dict(), f"{train_config.save_dir}/{training_step}.pt")
+                        model.train()
+                        del x, y, loss, val_loss
+                    training_step += 1
+                    train_seqs_so_far += train_config.batch_size_schedule[training_step]
+                    if training_step == train_config.total_steps:
+                        break
+                    if train_seqs_so_far >= train_config.max_train_seqs:
+                        break
+                    micro_batches = 0
+                    running_batch_loss = 0
+                    accum_iters =  train_config.batch_size_schedule[training_step] // train_config.micro_batch_size
+                    optimizer.zero_grad(set_to_none=True)
     torch.save(model.state_dict(), f"{train_config.save_dir}/final.pt") 
 
 if __name__ == '__main__':
