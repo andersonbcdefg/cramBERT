@@ -247,8 +247,8 @@ def train_bert(bert_config, train_config):
                         wandb.log({
                             "microbatch_train_loss": micro_batch_loss.item()
                         })
-                # Skip microbatch if loss spikes
-                if micro_batch_loss.item() > running_previous_loss * train_config.loss_spike_threshold:
+                # Skip microbatch if loss spikes / NaNs
+                if micro_batch_loss.item() > running_previous_loss * train_config.loss_spike_threshold or torch.isnan(micro_batch_loss).item():
                     print(f"Loss spike detected, skipping microbatch.")
                     continue
                 else:
