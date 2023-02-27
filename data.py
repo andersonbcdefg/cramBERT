@@ -281,7 +281,8 @@ class InMemoryBERTDataset(torch.utils.data.Dataset):
         self.debug = debug
         print(f"Loading {self.n_seqs} sequences of length {seq_len} from {raw_data_path}.")
         raw_data = np.memmap(raw_data_path, dtype=np.uint16, mode="r")
-        self.data = torch.ShortTensor(raw_data.astype(np.int16), device=torch.device("cpu")).reshape(-1, seq_len)
+        usable_data = raw_data[:self.n_seqs * seq_len]
+        self.data = torch.ShortTensor(usable_data.astype(np.int16), device=torch.device("cpu")).reshape(-1, seq_len)
         del raw_data
         
         # Collator
