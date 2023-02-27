@@ -151,7 +151,7 @@ def train_bert(bert_config, train_config):
             train_config.seq_len, 
             max_seqs = train_config.max_val_seqs
         )
-        val_dataloader = torch.utils.data.DataLoader(
+        val_loader = torch.utils.data.DataLoader(
             val_dataset, 
             batch_size=train_config.micro_batch_size,
             shuffle=False,
