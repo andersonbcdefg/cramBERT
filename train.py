@@ -334,6 +334,7 @@ def train_bert(bert_config, train_config):
                             os.mkdir(train_config.save_dir)
                         torch.save(model.state_dict(), f"{train_config.save_dir}/{training_step}.pt")
                         torch.save(model.state_dict(), train_config.recovery_ckpt_path)
+                        ckpt_recovery = False
                         model.train()
                         del x, y, loss, val_loss
                     training_step += 1
