@@ -26,7 +26,7 @@ batch_size_anneal_frac: 0.8 # what fraction of training examples to use for batc
 
 # one-cycle lr schedule
 pct_start: 0.02 # quick warmup, long annealing to nearly 0 -- not following "superconvergence" that didn't work
-max_lr: 6.0e-4
+max_lr: 3.0e-4
 start_div_factor: 1.0e+3
 end_div_factor: 1.0e+4
 anneal_strategy: "cosine"
