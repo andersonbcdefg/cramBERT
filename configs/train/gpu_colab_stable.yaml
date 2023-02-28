@@ -24,7 +24,7 @@ batch_size_anneal_frac: 0.8 # what fraction of training examples to use for batc
 # one-cycle lr schedule
 pct_start: 0.02 # quick warmup, long annealing to nearly 0 -- not following "superconvergence" that didn't work
 max_lr: 1.5e-4
-start_div_factor: 1.0e+2
+start_div_factor: 1.0e+4
 end_div_factor: 1.0e+4
 anneal_strategy: "cosine"
 
@@ -36,7 +36,8 @@ weight_decay: 1.0e-2
 max_grad_norm: 0.5
 fused: False
 eight_bit: True
-loss_spike_threshold: 1.2
+loss_spike_mult_threshold: 1.2
+loss_spike_add_threshold: 0.75
 max_microbatch_skips: 10
 
 # logging, eval, & checkpointing

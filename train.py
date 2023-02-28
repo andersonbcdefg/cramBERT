@@ -66,7 +66,8 @@ class TrainConfig:
     max_grad_norm: float
     fused: bool # whether to use fused adam (adamw not supported in stable pytorch yet)
     eight_bit: bool # whether to use 8-bit adam
-    loss_spike_threshold: float # threshold for detecting loss spikes
+    loss_spike_mult_threshold: float # threshold for detecting loss spikes (ratio of current loss to previous loss)
+    loss_spike_add_threshold: float # threshold for detecting loss spikes (absolute value of current loss)
     max_microbatch_skips: int # max number of microbatches to skip before stopping training
 
     # logging, eval, & checkpointing
@@ -252,7 +253,8 @@ def train_bert(bert_config, train_config):
                             "microbatch_train_loss": micro_batch_loss.item()
                         })
                 # Skip microbatch if loss spikes / NaNs
-                if micro_batch_loss.item() > running_previous_loss * train_config.loss_spike_threshold:
+                if micro_batch_loss.item() > min(running_previous_loss * train_config.loss_spike_mult_threshold,
+                                                running_previous_loss + train_config.loss_spike_add_threshold):
                     print(f"Loss spike detected, skipping microbatch. (Reason: Loss = {micro_batch_loss.item()}")
                     microbatch_skips += 1
                 elif torch.isnan(micro_batch_loss).item():
