@@ -24,7 +24,7 @@ batch_size_anneal_frac: 0.8 # what fraction of training examples to use for batc
 # one-cycle lr schedule
 pct_start: 0.02 # quick warmup, long annealing to nearly 0 -- not following "superconvergence" that didn't work
 max_lr: 1.5e-4
-start_div_factor: 1.0e+3
+start_div_factor: 1.0e+2
 end_div_factor: 1.0e+4
 anneal_strategy: "cosine"
 
@@ -36,7 +36,8 @@ weight_decay: 1.0e-2
 max_grad_norm: 0.5
 fused: False
 eight_bit: True
-loss_spike_threshold: 1.25
+loss_spike_threshold: 1.2
+max_microbatch_skips: 10
 
 # logging, eval, & checkpointing
 use_wandb: True
@@ -46,3 +47,4 @@ log_interval: 25
 val_interval: 1000
 save_interval: 1000
 save_dir: "/content/drive/My Drive/cramBERT/model_checkpoints/"
+recovery_ckpt_path: "/content/drive/My Drive/cramBERT/model_checkpoints/latest.pt"
