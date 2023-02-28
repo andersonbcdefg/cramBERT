@@ -22,7 +22,7 @@ anneal_batch_size: True # whether to anneal batch size
 batch_size_anneal_frac: 0.8 # what fraction of training examples to use for batch-size annealing
 
 # one-cycle lr schedule
-pct_start: 0.02 # quick warmup, long annealing to nearly 0 -- not following "superconvergence" that didn't work
+pct_start: 0.05 # quick warmup, long annealing to nearly 0 -- not following "superconvergence" that didn't work
 max_lr: 1.5e-4
 start_div_factor: 1.0e+4
 end_div_factor: 1.0e+4
