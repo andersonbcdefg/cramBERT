@@ -77,6 +77,7 @@ class TrainConfig:
     val_interval: int
     save_interval: int
     save_dir: str
+    recovery_ckpt_path: str # path to checkpoint to recover from
 
     @classmethod
     def from_yaml(cls, path):
@@ -206,6 +207,7 @@ def train_bert(bert_config, train_config):
     train_dataset = None
     train_loader = None
     microbatch_skips = 0
+    ckpt_recovery = False
     running_previous_loss = -math.log(1.0 / bert_config.vocab_size) # initialize to maximum entropy
     training_step = 0
     micro_batches = 0
@@ -264,8 +266,21 @@ def train_bert(bert_config, train_config):
                     microbatch_skips = 0
                     del normalized_loss
                 if microbatch_skips >= train_config.max_microbatch_skips:
-                    print("Too many microbatch skips, exiting training loop.")
-                    sys.exit(1)
+                    if not ckpt_recovery:
+                        print("Too many microbatch skips. Attempting to recover from checkpoint.")
+                        ckpt_recovery = True
+                        model.load_weights_from_checkpoint(train_config.recovery_ckpt_path)
+                        microbatch_skips = 0
+
+                        # Reset optimizer restart the batch
+                        print("Resetting optimizer and scheduler.")
+                        micro_batches = 0
+                        running_batch_loss = 0
+                        optimizer.zero_grad(set_to_none=True)
+
+                    else:
+                        print("Unable to stabilize training. Exiting.")
+                        sys.exit(1)
                 del x, y, micro_batch_loss
 
                 # Scheduler always takes a step, because it's based on total amount of data
@@ -318,6 +333,7 @@ def train_bert(bert_config, train_config):
                         if not os.path.exists(train_config.save_dir):
                             os.mkdir(train_config.save_dir)
                         torch.save(model.state_dict(), f"{train_config.save_dir}/{training_step}.pt")
+                        torch.save(model.state_dict(), train_config.recovery_ckpt_path)
                         model.train()
                         del x, y, loss, val_loss
                     training_step += 1
@@ -330,7 +346,44 @@ def train_bert(bert_config, train_config):
                     running_batch_loss = 0
                     accum_iters =  train_config.batch_size_schedule[training_step] // train_config.micro_batch_size
                     optimizer.zero_grad(set_to_none=True)
-    torch.save(model.state_dict(), f"{train_config.save_dir}/final.pt") 
+    # Take final step with remaining microbatches
+    if micro_batches > 0:
+        scaler.unscale_(optimizer)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), train_config.max_grad_norm)
+        scaler.step(optimizer)
+        scaler.update()
+        if train_config.use_wandb:
+            wandb.log({
+                "batch_train_loss": running_batch_loss,
+                "lr": scheduler.get_last_lr()[0],
+                "batch_size": train_config.batch_size_schedule[training_step]
+            })
+        print(f"Step {training_step} | Train loss: {running_batch_loss:.4f} | LR: {scheduler.get_last_lr()[0]:.5f} | Batch size: {train_config.batch_size_schedule[training_step]}")
+    if train_config.do_eval:
+        model.eval()
+        val_steps = 0
+        val_loss = 0
+        # start time
+        start = time.time()
+        with torch.no_grad():
+            for x, y in val_loader:
+                val_steps += 1
+                with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=train_config.use_amp):
+                    x, y = x.to(device), y.to(device)
+                    loss = model(x, targets=y)
+                    val_loss += loss.item()
+            val_loss /= val_steps
+        # end time
+        end = time.time()
+        if train_config.use_wandb:
+            wandb.log({
+                "val_loss": val_loss
+            })
+        print(f"Final validation loss: {val_loss:.4f}")    
+    print("Saving final model...")
+    if not os.path.exists(train_config.save_dir):
+        os.mkdir(train_config.save_dir)
+    torch.save(model.state_dict(), f"{train_config.save_dir}/final.pt")
 
 if __name__ == '__main__':
     fire.Fire(train_bert)

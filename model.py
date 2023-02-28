@@ -54,6 +54,7 @@ class BERT(nn.Module):
         self.norm = LayerNorm(config.d_model, weight=True, bias=False)
         self.fc = nn.Linear(config.d_model, config.vocab_size, bias=False)
         self.initializer_range = config.initializer_range
+        self.tie_weights = config.tie_weights
 
         if config.tie_weights:
             self.fc.weight = self.token_emb.weight
@@ -73,9 +74,16 @@ class BERT(nn.Module):
         # TODO: see if this initialization makes sense??
         # torch.nn.init.xavier_uniform_(self.pos_emb, gain=1.0)
 
-    @classmethod
-    def from_pretrained(cls, name):
-        raise NotImplementedError
+    def load_weights_from_checkpoint(self, ckpt_path):
+        ckpt = torch.load(ckpt_path, map_location=next(self.parameters()).device)
+        for name, param in self.named_parameters():
+            if name in ckpt:
+                param.data.copy_(ckpt[name])
+            else:
+                print(f"Parameter {name} not found in checkpoint.")
+        if self.tie_weights:
+            self.fc.weight = self.token_emb.weight
+        del ckpt
 
     # Borrowed from Karpathy's nanoGPT 
     def _init_weights(self, module):

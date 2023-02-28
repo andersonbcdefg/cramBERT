@@ -41,9 +41,10 @@ def test_transformer_block(batch_size, seq_len, d_model, d_qkv, n_heads, ffn_hid
 
 def test_config():
     config = BERTConfig(
+        model="BERT",
         vocab_size=32768,
         n_layers=12,
-        max_seq_len=512,
+        max_seq_len=128,
         d_model=768,
         d_qkv=64,
         n_heads=12,
@@ -52,27 +53,15 @@ def test_config():
         tie_weights=True,
         dropout=0.0,
         linear_bias=False,
-        layernorm_bias=False
+        layernorm_bias=False,
+        initializer_range=0.002
     )
-    config2 = BERTConfig.from_yaml("configs/test_config.yaml")
+    config2 = BERTConfig.from_yaml("configs/model/base_model.yaml")
     assert config == config2, "Config from yaml is not the same as the one created manually."
     print("Config test passed!")
 
 def test_bert():
-    config = BERTConfig(
-        vocab_size=32768,
-        n_layers=12,
-        max_seq_len=512,
-        d_model=768,
-        d_qkv=64,
-        n_heads=12,
-        ffn_geglu=True,
-        ffn_hidden_size=2048,
-        tie_weights=True,
-        dropout=0.0,
-        linear_bias=False,
-        layernorm_bias=False
-    )
+    config = BERTConfig.from_yaml("configs/model/base_model.yaml")
     model = BERT(config)
     model.get_optim_groups(weight_decay=0.01)
     in_tensor = torch.randint(0, config.vocab_size, (10, config.max_seq_len))
@@ -111,6 +100,22 @@ def test_bert_dataloader():
     assert first_batch["targets"].shape == torch.Size([64, 128]), "Target should have shape (batch_size, seq_len)."
     print("BERT dataloader test passed!")
 
+def test_load_from_checkpoint():
+    model = BERT(BERTConfig.from_yaml("configs/model/base_model.yaml"))
+    model.load_weights_from_checkpoint("checkpoints/checkpoint.pt")
+    print("Loaded from checkpoint! Testing validation loss...")
+    tokenizer = load_tokenizer(file_path="webtext/tokenizer.json")
+    dataset = BERTDataset("webtext/webtext_val.bin", tokenizer, 128, debug=False)
+    dataloader = DataLoader(dataset, batch_size=64, shuffle=False, num_workers=0)
+    first_batch = {}
+    for inputs, targets in dataloader:
+        first_batch["inputs"] = inputs
+        first_batch["targets"] = targets
+        break
+    loss = model(first_batch["inputs"], first_batch["targets"])
+    print("Validation loss: ", loss.item())
+    
+
 if __name__ == "__main__":
     # Test all the layers
     test_attention(4, 32, 512, 64, 8)
@@ -125,4 +130,7 @@ if __name__ == "__main__":
     # Make sure the dataset and dataloader work with webtext
     test_bert_dataset()
     test_bert_dataloader()
+
+    # Test loading from checkpoint
+    test_load_from_checkpoint()
     print("All tests passed!")

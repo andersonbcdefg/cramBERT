@@ -47,6 +47,7 @@ use_wandb: True
 wandb_project: "cramming"
 wandb_watch: True
 log_interval: 25
-val_interval: 1000
+val_interval: 500
 save_interval: 1000
 save_dir: "/content/drive/My Drive/cramBERT/model_checkpoints/"
+recovery_ckpt_path: "/content/drive/My Drive/cramBERT/model_checkpoints/latest.pt"
