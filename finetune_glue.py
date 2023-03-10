@@ -20,8 +20,8 @@ import yaml
 from data import load_tokenizer
 from finetune import FineTuneDataset, BERTForFineTuning, FineTuneConfig
 from torch.utils.data import DataLoader
-# import matthews corr
 from sklearn.metrics import matthews_corrcoef, f1_score, accuracy_score
+from scipy.stats import pearsonr, spearmanr
 
 def download_glue(metadata_file="glue_metadata.yaml", data_dir="glue"):
     if not os.path.exists(data_dir):
@@ -172,6 +172,35 @@ def test_load_data():
                     metadata['num_classes'][task], tokenizer, max_len=128)
                 print(f"Loaded {len(dataset)} examples")
 
+def eval_model(model, dataloader, num_classes, metrics):
+    # Evaluate model
+    print("Evaluating model on dev set...")
+    model.eval()
+    preds = []
+    labels = []
+    for x, y, mask in dataloader:
+        x, y, mask = x.to(device), y.to(device), mask.to(device)
+        with torch.no_grad():
+            logits = model(x, targets=None, attention_mask=mask) # bsz, num_classes
+        # if regression task, logits are used directly as predictions
+        if num_classes == 1:
+            dev_preds.extend(logits.squeeze().cpu().numpy().tolist())
+        else:
+            dev_preds.extend(torch.argmax(logits, dim=-1).cpu().numpy().tolist())
+        dev_labels.extend(y.cpu().numpy().tolist())
+    result = {}
+    if "matthews" in metrics:
+        result["matthews"] = matthews_corrcoef(dev_labels, dev_preds)
+    if "accuracy" in metrics:
+        result["accuracy"] = accuracy_score(dev_labels, dev_preds)
+    if "f1" in metrics:
+        result["f1"] = f1_score(dev_labels, dev_preds)
+    if "pearson" in metrics:
+        result["pearson"] = pearsonr(dev_labels, dev_preds)[0]
+    if "spearman" in metrics:
+        result["spearman"] = spearmanr(dev_labels, dev_preds)[0]
+    return result
+
 def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokenizer):
     print(f"Finetuning {task}...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -230,23 +259,15 @@ def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokeni
             loss.backward()
             optimizer.step()
             scheduler.step()
+        if task != "MNLI":
+            result = eval_model(model, dev_dataloader, glue_metadata['num_classes'][task], metrics=glue_metadata['metrics'][task])
+            print(f"Dev {task} results after {epoch + 1} epochs:\n{result}")
+        else:
+            result_matched = eval_model(model, dev_matched_dataloader, glue_metadata['num_classes'][task], metrics=glue_metadata['metrics'][task])
+            result_mismatched = eval_model(model, dev_mismatched_dataloader, glue_metadata['num_classes'][task], metrics=glue_metadata['metrics'][task])
+            print(f"Dev {task} results after {epoch + 1} epochs:\n{result_matched}\n{result_mismatched}")
 
-    # Evaluate model
-    print("Evaluating!")
-    model.eval()
-    if task != "MNLI":
-        dev_preds = []
-        dev_labels = []
-        for x, y, mask in dev_dataloader:
-            x, y, mask = x.to(device), y.to(device), mask.to(device)
-            with torch.no_grad():
-                logits = model(x, targets=None, attention_mask=mask)
-            dev_preds.extend(logits.argmax(dim=-1).cpu().numpy().tolist())
-            dev_labels.extend(y.cpu().numpy().tolist())
-        dev_acc = accuracy_score(dev_labels, dev_preds)
-        matthews_corr = matthews_corrcoef(dev_labels, dev_preds)
-        print(f"Dev accuracy: {dev_acc}")
-        print(f"Dev matthews_corr: {matthews_corr}")
+    
     
 def run_glue(model_config, finetune_config):
     # download glue if it doesn't exist

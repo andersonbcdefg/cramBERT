@@ -54,3 +54,12 @@ num_classes:
   "MNLI": 3
   "QNLI": 2
   "RTE": 2
+
+metrics:
+  "CoLA": ["matthews"]
+  "SST-2": ["accuracy"]
+  "QQP": ["accuracy", "f1"]
+  "STS-B": ["pearson"]
+  "MNLI": ["accuracy"]
+  "QNLI": ["accuracy"]
+  "RTE": ["accuracy"]
