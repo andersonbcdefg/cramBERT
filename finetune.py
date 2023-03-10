@@ -67,6 +67,8 @@ class BERTForFineTuning(nn.Module):
         self.bert = bert
         self.dropout = nn.Dropout(dropout)
         self.output_head = nn.Linear(bert.d_model, num_classes)
+        nn.init.normal_(self.output_head.weight, std=bert.initializer_range)
+    
     def forward(self, input_ids, targets, attention_mask):
         outputs = self.bert(input_ids, mask=attention_mask) # (bsz, seq_len, hidden_size)
         pooled = torch.mean(outputs, dim=1) # (bsz, hidden_size)

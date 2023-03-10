@@ -20,7 +20,8 @@ import yaml
 from data import load_tokenizer
 from finetune import FineTuneDataset, BERTForFineTuning, FineTuneConfig
 from torch.utils.data import DataLoader
-from tqdm import tqdm
+# import matthews corr
+from sklearn.metrics import matthews_corrcoef
 
 def download_glue(metadata_file="glue_metadata.yaml", data_dir="glue"):
     if not os.path.exists(data_dir):
@@ -239,11 +240,13 @@ def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokeni
         for x, y, mask in tqdm(dev_dataloader):
             x, y, mask = x.to(device), y.to(device), mask.to(device)
             with torch.no_grad():
-                logits = model(x, mask)
+                logits = model(x, y, mask)
             dev_preds.extend(logits.argmax(dim=-1).cpu().numpy().tolist())
             dev_labels.extend(y.cpu().numpy().tolist())
         dev_acc = accuracy_score(dev_labels, dev_preds)
+        matthews_corr = matthews_corrcoef(dev_labels, dev_preds)
         print(f"Dev accuracy: {dev_acc}")
+        print(f"Dev matthews_corr: {matthews_corr}")
     
 def run_glue(model_config, finetune_config):
     # download glue if it doesn't exist
