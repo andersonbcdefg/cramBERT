@@ -42,6 +42,7 @@ Note that the original BERT paper only fine-tuned for 3 epochs.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Original BERT-base | 52.1 | 93.5 | 71.2 | 85.8 | 84.6/83.4 | 90.5 | 66.4 |
 | Original BERT-large | 60.5 | 94.9 | 72.1 | 86.5 | 86.7/85.9 | 92.7 | 70.1 |
+| RoBERTa | 67.8 | 96.7 | 90.2 | 92.2 | 90.8/90.2 | 98.9 | 88.2 |
 | Best Crammed BERT | 44.5 | 92.2 | 87.3 | 84.6 | 83.9/84.1 | 89.5 | 53.8 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | My Crammed BERT |
