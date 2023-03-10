@@ -120,14 +120,14 @@ class BERT(nn.Module):
         ] 
 
     # Targets must be masked with -100 at non-masked indices that should be ignored
-    def forward(self, X, targets=None):
+    def forward(self, X, targets=None, mask=None):
         token_embs = self.token_emb(X)
         pos_embs = self.pos_emb[:, :X.shape[1], :]
         X = self.token_emb(X) + self.pos_emb[:, :X.shape[1], :]
         # X = self.emb_norm(X) ==> bnb.nn.StableEmbedding already has LayerNorm
         X = self.emb_dropout(X)
         for block in self.blocks:
-            X = block(X)
+            X = block(X, mask=mask)
         logits = self.fc(self.norm(X))
 
         if targets is not None:

@@ -37,10 +37,17 @@ class Attention(nn.Module):
         self.out_proj = nn.Linear(d_qkv * n_heads, d_model, bias=False)
         self.out_dropout = nn.Dropout(dropout)
 
-    def forward(self, X):
+    def forward(self, X, mask=None):
         b, s, _ = X.shape
         q, k, v = self.to_qkv(X).view(b, s, self.n_heads, self.d_qkv, 3).unbind(dim=-1)
         attn_scores = q.transpose(1, 2) @ k.permute((0, 2, 3, 1)) / self.scale
+        if mask is not None:
+            # Fill padding with -inf
+            # Mask is shape (b, s) and attn_scores is shape (b, n_heads, s, s)
+            # We need to unsqueeze mask to shape (b, 1, 1, s) and fill where mask is 0 
+           # (padding) along the key dimension
+            mask = mask.unsqueeze(1).unsqueeze(1)
+            attn_scores.masked_fill_(~mask, float('-inf'))
         attn_weights = self.attn_dropout(F.softmax(attn_scores, dim=-1))
         attn_out = attn_weights @ v.transpose(1, 2)
         return self.out_dropout(self.out_proj(attn_out.transpose(1, 2).flatten(-2)))
@@ -69,5 +76,5 @@ class TransformerBlock(nn.Module):
         self.attn = PreNormAndAdd(d_model, Attention(d_model, d_qkv, n_heads, dropout=dropout))
         self.ffn =  PreNormAndAdd(d_model, FFN(ffn_geglu, d_model, ffn_hidden_size, dropout=dropout))
 
-    def forward(self, X):
-        return self.ffn(self.attn(X))
+    def forward(self, X, mask=None):
+        return self.ffn(self.attn(X, mask=mask))
