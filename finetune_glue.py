@@ -175,6 +175,7 @@ def test_load_data():
 def eval_model(model, dataloader, num_classes, metrics):
     # Evaluate model
     print("Evaluating model on dev set...")
+    device = next(model.parameters()).device
     model.eval()
     preds = []
     labels = []
