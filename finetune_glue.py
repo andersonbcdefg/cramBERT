@@ -185,21 +185,21 @@ def eval_model(model, dataloader, num_classes, metrics):
             logits = model(x, targets=None, attention_mask=mask) # bsz, num_classes
         # if regression task, logits are used directly as predictions
         if num_classes == 1:
-            dev_preds.extend(logits.squeeze().cpu().numpy().tolist())
+            preds.extend(logits.squeeze().cpu().numpy().tolist())
         else:
-            dev_preds.extend(torch.argmax(logits, dim=-1).cpu().numpy().tolist())
-        dev_labels.extend(y.cpu().numpy().tolist())
+            preds.extend(torch.argmax(logits, dim=-1).cpu().numpy().tolist())
+        labels.extend(y.cpu().numpy().tolist())
     result = {}
     if "matthews" in metrics:
-        result["matthews"] = matthews_corrcoef(dev_labels, dev_preds)
+        result["matthews"] = matthews_corrcoef(labels, preds)
     if "accuracy" in metrics:
-        result["accuracy"] = accuracy_score(dev_labels, dev_preds)
+        result["accuracy"] = accuracy_score(labels, preds)
     if "f1" in metrics:
-        result["f1"] = f1_score(dev_labels, dev_preds)
+        result["f1"] = f1_score(labels, preds)
     if "pearson" in metrics:
-        result["pearson"] = pearsonr(dev_labels, dev_preds)[0]
+        result["pearson"] = pearsonr(labels, preds)[0]
     if "spearman" in metrics:
-        result["spearman"] = spearmanr(dev_labels, dev_preds)[0]
+        result["spearman"] = spearmanr(labels, preds)[0]
     return result
 
 def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokenizer):
