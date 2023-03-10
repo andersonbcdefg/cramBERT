@@ -241,12 +241,14 @@ def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokeni
     
 def run_glue(model_config, finetune_config):
     # download glue if it doesn't exist
-    tokenizer = load_tokenizer(finetune_config.tokenizer_path)
     if isinstance(finetune_config, str):
         finetune_config = FineTuneConfig.from_yaml(finetune_config)
     if not os.path.exists("glue") or not os.path.exists("glue/CoLA"):
         download_glue(metadata_file=finetune_config.metadata_file)
     glue_metadata = yaml.safe_load(open(finetune_config.metadata_file, 'r'))
+
+    # load tokenizer
+    tokenizer = load_tokenizer(finetune_config.tokenizer_path)
 
     for task in finetune_config.tasks:
         finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokenizer)
