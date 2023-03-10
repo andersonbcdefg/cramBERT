@@ -34,13 +34,16 @@ I drop the next-sentence prediction objective from the original BERT paper, and 
 * Finally, I used PyTorch's automatic mixed precision utilities to train in (mostly) `fp16`, which saves memory, allowing me to go from a microbatch size of 128 to 256. It was tough to get all the pieces of this right (make sure you unscale the gradients before you clip them, folks!) but it was definitely worth it, and not as hard as it sounds.
 
 ## Finetuning on GLUE
-I fine-tune on a subset of GLUE tasks that includes CoLA, SST-2, QQP, STS-B, MNLI, QNLI, and RTE.
+I fine-tune on a subset of GLUE tasks that includes CoLA, SST-2, QQP, STS-B, MNLI, QNLI, and RTE. Following the Cramming paper, I restrict myself to a global hyperparameter setting for all downstream tasks (rather than tuning for each task separately), and fine-tune for 5 epochs on each task. I use a batch size of 16, an initial learning rate of 1.0e-4, and a cosine decay schedule. Dropout of 0.1 is used for fine-tuning. 
+
+Note that the original BERT paper only fine-tuned for 3 epochs.
 
 | Model | CoLA | SST-2 | QQP | STS-B | MNLI-(m/mm) | QNLI | RTE |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| BERT-base |
-| BERT-large |
-| Best Crammed BERT |
+| Original BERT-base | 52.1 | 93.5 | 71.2 | 85.8 | 84.6/83.4 | 90.5 | 66.4 |
+| Original BERT-large | 60.5 | 94.9 | 72.1 | 86.5 | 86.7/85.9 | 92.7 | 70.1 |
+| Best Crammed BERT | 44.5 | 92.2 | 87.3 | 84.6 | 83.9/84.1 | 89.5 | 53.8 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
 | My Crammed BERT |
 So far, I've achieved a MLM loss of around 1.9! I plan to fine-tune and evaluate the model on a few downstream tasks to gauge how well it performs there. I'll update this section as I make progress.
 
