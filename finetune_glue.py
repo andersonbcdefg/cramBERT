@@ -23,6 +23,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 def download_glue(metadata_file="glue_metadata.yaml", data_dir="glue"):
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
     metadata = yaml.safe_load(open(metadata_file, 'r'))
     for task in metadata['tasks']:
         print(f"Downloading and extracting {task}...")
@@ -239,11 +241,11 @@ def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokeni
     
 def run_glue(model_config, finetune_config):
     # download glue if it doesn't exist
-    if not os.path.exists("glue") or not os.path.exists("glue/CoLA"):
-        download_glue(metadata_file=finetune_config.metadata_file)
     tokenizer = load_tokenizer()
     if isinstance(finetune_config, str):
         finetune_config = FineTuneConfig.from_yaml(finetune_config)
+    if not os.path.exists("glue") or not os.path.exists("glue/CoLA"):
+        download_glue(metadata_file=finetune_config.metadata_file)
     glue_metadata = yaml.safe_load(open(finetune_config.metadata_file, 'r'))
 
     for task in finetune_config.tasks:
