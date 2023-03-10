@@ -13,6 +13,9 @@ class FineTuneConfig:
     lr: float
     weight_decay: float
     dropout: float
+    metadata_file: str
+    checkpoint_path: str
+    tokenizer_path: str
 
     @classmethod
     def from_yaml(cls, path):
