@@ -6,6 +6,7 @@ tasks:
   - MNLI
   - QNLI
   - RTE
+metadata_file: "/content/cramBERT/glue_metadata.yaml"
 num_epochs: 5
 batch_size: 32
 lr: 1.0e-5
