@@ -51,7 +51,9 @@ class BERT(nn.Module):
             config.d_qkv, 
             config.n_heads, 
             config.ffn_geglu,
-            config.ffn_hidden_size) for _ in range(config.n_layers)])
+            config.ffn_hidden_size,
+            dropout=config.dropout
+        ) for _ in range(config.n_layers)])
         self.norm = LayerNorm(config.d_model, weight=True, bias=False)
         self.fc = nn.Linear(config.d_model, config.vocab_size, bias=False)
         self.initializer_range = config.initializer_range
@@ -136,10 +138,6 @@ class BERT(nn.Module):
             return loss
         else:
             return logits
-
-class HuggingFaceBERT(nn.Module):
-    def __init__(self, config: BERTConfig):
-        pass
 
 class HuggingFaceRoBERTa(nn.Module):
     def __init__(self, config: BERTConfig):

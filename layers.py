@@ -63,13 +63,11 @@ class FFN(nn.Module):
         else:
             return self.out_dropout(self.fc2(F.gelu(self.fc1(X), approximate='tanh')))
 
-
-
 class TransformerBlock(nn.Module):
-    def __init__(self, d_model, d_qkv, n_heads, ffn_geglu, ffn_hidden_size):
+    def __init__(self, d_model, d_qkv, n_heads, ffn_geglu, ffn_hidden_size, dropout=0.0):
         super().__init__()
-        self.attn = PreNormAndAdd(d_model, Attention(d_model, d_qkv, n_heads))
-        self.ffn =  PreNormAndAdd(d_model, FFN(ffn_geglu, d_model, ffn_hidden_size))
+        self.attn = PreNormAndAdd(d_model, Attention(d_model, d_qkv, n_heads, dropout=dropout))
+        self.ffn =  PreNormAndAdd(d_model, FFN(ffn_geglu, d_model, ffn_hidden_size, dropout=dropout))
 
     def forward(self, X):
         return self.ffn(self.attn(X))
