@@ -45,6 +45,7 @@ class BERT(nn.Module):
         self.max_seq_len = config.max_seq_len
         self.token_emb = bnb.nn.StableEmbedding(config.vocab_size, config.d_model)
         self.pos_emb = nn.Parameter(torch.zeros(1, config.max_seq_len, config.d_model))
+        self.emb_norm = LayerNorm(config.d_model, weight=True, bias=False)
         self.emb_dropout = nn.Dropout(config.dropout)
         self.blocks = nn.ModuleList([TransformerBlock(
             config.d_model, 
@@ -124,7 +125,7 @@ class BERT(nn.Module):
         token_embs = self.token_emb(X)
         pos_embs = self.pos_emb[:, :X.shape[1], :]
         X = self.token_emb(X) + self.pos_emb[:, :X.shape[1], :]
-        # X = self.emb_norm(X) ==> bnb.nn.StableEmbedding already has LayerNorm
+        X = self.emb_norm(X) # bnb.nn.StableEmbedding already has LayerNorm, but I trained the model with this, so better leave it
         X = self.emb_dropout(X)
         for block in self.blocks:
             X = block(X, mask=mask)

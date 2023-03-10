@@ -21,7 +21,7 @@ My implementation of BERT is quite similar to the [original paper]([https://arxi
 * For simplicity, I use learned absolute position embeddings. This means my model will not generalize beyond the sequence length used for training (128 tokens), but recent work on positional encoding (e.g. [Press, Smith, & Lewis, 2021](https://arxiv.org/abs/2108.12409)) finds that sinusoidal embeddings don't generalize well to longer sequences either.
 * The feed-forward networks in my Transformer use the [Gated Linear Units](https://arxiv.org/abs/2002.05202) proposed by Noam Shazeer (2020). Following this paper, I reduce the feed-forward hidden size to 2,048 (rather than 3,072) to maintain the same number of parameters.
 * I omit biases for all feed-forward layers, including the query-key-value projections in the attention sublayer. I also omit the bias in the affine transformations that follow LayerNorms. Omitting bias is a common practice in recent Transformer models, and is suggested in the Cramming paper as a way to simplify and speed up training, without substantially reducing the *size* of the model (which tends to hurt performance).
-* Weights in all linear layers are initialized randomly from a normal distribution with mean 0 and standard deviation 0.002. I found that a standard deviation of 0.02 (the default value for the Cramming paper and also for OpenAI's [GPT-2](https://github.com/openai/gpt-2/blob/master/src/model.py)) resulted in a large initial loss, indicating that a smaller initialization may work better. I'm sure that Kaiming or Xavier uniform initialization would work fine too, the important thing seemed to be making sure the weights were small enough. Positional embeddings were initialized to 0, and the LayerNorm weights were initialized to 1.
+* Weights in all linear layers are initialized randomly from a normal distribution with mean 0 and standard deviation 0.002. I found that a standard deviation of 0.02 (the default value for the Cramming paper and also for OpenAI's [GPT-2](https://github.com/openai/gpt-2/blob/master/src/model.py)) resulted in a large initial loss, indicating that a smaller initialization may work better. I'm sure that Kaiming or Xavier uniform initialization would work fine too, the important thing seems to be making sure the weights are small enough. Positional embeddings were initialized to 0, and the LayerNorm weights were initialized to 1.
 * For token embeddings, I use the StableEmbedding module from the `bitsandbytes` library, which is a drop-in replacement for `torch.nn.Embedding` that is more stable when using an 8-bit optimizer. It includes a LayerNorm, so I do not need to add my own LayerNorm directly after the token embedding. I add an additional LayerNorm after summing the positional embedding with the token embedding.
 
 ## Training
@@ -33,7 +33,15 @@ I drop the next-sentence prediction objective from the original BERT paper, and 
 * I did not find the one-cycle learning rate schedule from the Cramming paper to work right out of the box. The simplicity of the one-cycle learning rate (see [Smith & Topin, 2017](https://arxiv.org/abs/1708.07120)) appealed to me, but the suggested maximum learning rate of 1e-3 caused my model to diverge during training (in fact, it never reaches that learning rate). I had to use a much lower maximum learning rate of 2e-4. Maybe the training data is noisier in my setting, because I keep all the accents and special characters and such. This may require a smaller learning rate. Rather than warming up for half of the token budget and annealing for the second half, I follow Iszak et al. and warm up for 10% of the token budget and anneal for the remaining 90%.
 * Finally, I used PyTorch's automatic mixed precision utilities to train in (mostly) `fp16`, which saves memory, allowing me to go from a microbatch size of 128 to 256. It was tough to get all the pieces of this right (make sure you unscale the gradients before you clip them, folks!) but it was definitely worth it, and not as hard as it sounds.
 
-## Results
+## Finetuning on GLUE
+I fine-tune on a subset of GLUE tasks that includes CoLA, SST-2, QQP, STS-B, MNLI, QNLI, and RTE.
+
+| Model | CoLA | SST-2 | QQP | STS-B | MNLI-(m/mm) | QNLI | RTE |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| BERT-base |
+| BERT-large |
+| Best Crammed BERT |
+| My Crammed BERT |
 So far, I've achieved a MLM loss of around 1.9! I plan to fine-tune and evaluate the model on a few downstream tasks to gauge how well it performs there. I'll update this section as I make progress.
 
 ## References
