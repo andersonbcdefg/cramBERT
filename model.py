@@ -24,6 +24,7 @@ class BERTConfig:
     linear_bias: bool
     layernorm_bias: bool
     initializer_range: float = 0.02
+    checkpoint_path: str = None
 
     @classmethod
     def from_yaml(cls, path):
@@ -44,7 +45,7 @@ class BERT(nn.Module):
         self.max_seq_len = config.max_seq_len
         self.token_emb = bnb.nn.StableEmbedding(config.vocab_size, config.d_model)
         self.pos_emb = nn.Parameter(torch.zeros(1, config.max_seq_len, config.d_model))
-        self.emb_norm = LayerNorm(config.d_model, weight=True, bias=False)
+        self.emb_dropout = nn.Dropout(config.dropout)
         self.blocks = nn.ModuleList([TransformerBlock(
             config.d_model, 
             config.d_qkv, 
@@ -71,8 +72,6 @@ class BERT(nn.Module):
         
         # Initialize model parameters
         self.apply(self._init_weights)
-        # TODO: see if this initialization makes sense??
-        # torch.nn.init.xavier_uniform_(self.pos_emb, gain=1.0)
 
     def load_weights_from_checkpoint(self, ckpt_path):
         ckpt = torch.load(ckpt_path, map_location=next(self.parameters()).device)
@@ -91,9 +90,6 @@ class BERT(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0.0, std=self.initializer_range)
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
-        # no longer necessary since we're using StableEmbedding
-        # elif isinstance(module, nn.Embedding):
-        #     torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
         elif isinstance(module, (LayerNorm)) or isinstance(module, (nn.LayerNorm)):
             torch.nn.init.ones_(module.weight)
             if module.bias is not None:
@@ -126,10 +122,12 @@ class BERT(nn.Module):
         token_embs = self.token_emb(X)
         pos_embs = self.pos_emb[:, :X.shape[1], :]
         X = self.token_emb(X) + self.pos_emb[:, :X.shape[1], :]
-        X = self.emb_norm(X)
+        # X = self.emb_norm(X) ==> bnb.nn.StableEmbedding already has LayerNorm
+        X = self.emb_dropout(X)
         for block in self.blocks:
             X = block(X)
         logits = self.fc(self.norm(X))
+
         if targets is not None:
             loss = F.cross_entropy(
                 torch.flatten(logits, start_dim=0, end_dim=1), 

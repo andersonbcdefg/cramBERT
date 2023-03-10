@@ -1,0 +1,56 @@
+tasks:
+  - CoLA
+  - SST-2
+  - QQP
+  - STS-B
+  - MNLI
+  - QNLI
+  - RTE
+
+task_urls:
+  "CoLA": https://dl.fbaipublicfiles.com/glue/data/CoLA.zip
+  "SST-2": https://dl.fbaipublicfiles.com/glue/data/SST-2.zip
+  "QQP": https://dl.fbaipublicfiles.com/glue/data/QQP-clean.zip
+  "STS-B": https://dl.fbaipublicfiles.com/glue/data/STS-B.zip
+  "MNLI": https://dl.fbaipublicfiles.com/glue/data/MNLI.zip
+  "QNLI": https://dl.fbaipublicfiles.com/glue/data/QNLIv2.zip
+  "RTE": https://dl.fbaipublicfiles.com/glue/data/RTE.zip
+
+task_cols:
+  "CoLA":
+    sentence1: sentence
+    sentence2: null
+    label: label
+  "SST-2":
+    sentence1: sentence
+    sentence2: null
+    label: label
+  "QQP":
+    sentence1: question1
+    sentence2: question2
+    label: is_duplicate
+  "STS-B":
+    sentence1: sentence1
+    sentence2: sentence2
+    label: score
+  "MNLI":
+    sentence1: premise
+    sentence2: hypothesis
+    label: label
+  "QNLI":
+    sentence1: question
+    sentence2: sentence
+    label: label
+  "RTE":
+    sentence1: sentence1
+    sentence2: sentence2
+    label: label
+
+num_classes:
+  "CoLA": 2
+  "SST-2": 2
+  "QQP": 2
+  "STS-B": 1
+  "MNLI": 3
+  "QNLI": 2
+  "RTE": 2

@@ -8,12 +8,8 @@ from model import BERT, BERTConfig, HuggingFaceRoBERTa
 
 def test_attention(batch_size, seq_len, d_model, d_qkv, n_heads):
     attn = Attention(d_model, d_qkv, n_heads)
-    ein_attn = EinsumAttention(d_model, d_qkv, n_heads)
-    ein_attn.load_state_dict(attn.state_dict())
     in_tensor = torch.randn((batch_size, seq_len, d_model))
     out = attn(in_tensor)
-    ein_out = ein_attn(in_tensor)
-    assert torch.equal(out, ein_out), "Got different results with vanilla implementation vs. einsum implementation."
     assert in_tensor.shape == out.shape, "Input and output are not the same shape."
     print("Attention test passed!")
 

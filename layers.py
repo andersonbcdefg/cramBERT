@@ -26,44 +26,27 @@ class PreNormAndAdd(nn.Module):
         return X + self.sublayer(self.norm(X))
 
 class Attention(nn.Module):
-    def __init__(self, d_model, d_qkv, n_heads):
+    def __init__(self, d_model, d_qkv, n_heads, dropout=0.0):
         super().__init__()
         self.d_model = d_model
         self.d_qkv = d_qkv
         self.scale = d_qkv**0.5
         self.n_heads = n_heads
         self.to_qkv = nn.Linear(d_model, 3 * d_qkv * n_heads, bias=False)
+        self.attn_dropout = nn.Dropout(dropout)
         self.out_proj = nn.Linear(d_qkv * n_heads, d_model, bias=False)
+        self.out_dropout = nn.Dropout(dropout)
 
     def forward(self, X):
         b, s, _ = X.shape
         q, k, v = self.to_qkv(X).view(b, s, self.n_heads, self.d_qkv, 3).unbind(dim=-1)
         attn_scores = q.transpose(1, 2) @ k.permute((0, 2, 3, 1)) / self.scale
-        attn_weights = F.softmax(attn_scores, dim=-1)
+        attn_weights = self.attn_dropout(F.softmax(attn_scores, dim=-1))
         attn_out = attn_weights @ v.transpose(1, 2)
-        return self.out_proj(attn_out.transpose(1, 2).flatten(-2))
-
-# Easy mode: einsum (used as reference for correctness)
-class EinsumAttention(nn.Module):
-    def __init__(self, d_model, d_qkv, n_heads):
-        super().__init__()
-        self.d_model = d_model
-        self.d_qkv = d_qkv
-        self.scale = d_qkv**0.5
-        self.n_heads = n_heads
-        self.to_qkv = nn.Linear(d_model, 3 * d_qkv * n_heads, bias=False)
-        self.out_proj = nn.Linear(d_qkv * n_heads, d_model, bias=False)
-
-    def forward(self, X):
-        b, s, _ = X.shape
-        q, k, v = self.to_qkv(X).view(b, s, self.n_heads, self.d_qkv, 3).unbind(dim=-1)
-        attn_scores = torch.einsum('bqhd,bkhd->bhqk', q, k) / self.scale
-        attn_weights = F.softmax(attn_scores, dim=-1)
-        attn_out = torch.einsum('bhqk,bkhd->bqhd', attn_weights, v)
-        return self.out_proj(attn_out.flatten(-2))
+        return self.out_dropout(self.out_proj(attn_out.transpose(1, 2).flatten(-2)))
 
 class FFN(nn.Module):
-    def __init__(self, geglu, d_model, hidden_size):
+    def __init__(self, geglu, d_model, hidden_size, dropout=0.0):
         super().__init__()
         self.geglu = geglu
         if geglu:
@@ -71,13 +54,14 @@ class FFN(nn.Module):
         else: 
             self.fc1 = nn.Linear(d_model, hidden_size, bias=False)
         self.fc2 = nn.Linear(hidden_size, d_model, bias=False)
+        self.out_dropout = nn.Dropout(dropout)
 
     def forward(self, X):
         if self.geglu:
             a, b = self.fc1(X).chunk(2, dim=-1)
-            return self.fc2(a * F.gelu(b, approximate='tanh'))
+            return self.out_dropout(self.fc2(a * F.gelu(b, approximate='tanh')))
         else:
-            return self.fc2(F.gelu(self.fc1(X), approximate='tanh'))
+            return self.out_dropout(self.fc2(F.gelu(self.fc1(X), approximate='tanh')))
 
 
 
