@@ -205,6 +205,7 @@ def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokeni
     base_model = BERT(model_config)
     base_model.load_weights_from_checkpoint(finetune_config.checkpoint_path)
     model = BERTForFineTuning(base_model, glue_metadata['num_classes'][task], dropout=finetune_config.dropout)
+    model.to(device)
 
     # Create optimizer and scheduler
     optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_config.lr, weight_decay=finetune_config.weight_decay)
