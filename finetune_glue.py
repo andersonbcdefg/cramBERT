@@ -240,7 +240,7 @@ def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokeni
         for x, y, mask in dev_dataloader:
             x, y, mask = x.to(device), y.to(device), mask.to(device)
             with torch.no_grad():
-                logits = model(x, y, mask)
+                logits = model(x, targets=None, attention_mask=mask)
             dev_preds.extend(logits.argmax(dim=-1).cpu().numpy().tolist())
             dev_labels.extend(y.cpu().numpy().tolist())
         dev_acc = accuracy_score(dev_labels, dev_preds)
