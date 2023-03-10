@@ -21,7 +21,7 @@ from data import load_tokenizer
 from finetune import FineTuneDataset, BERTForFineTuning, FineTuneConfig
 from torch.utils.data import DataLoader
 # import matthews corr
-from sklearn.metrics import matthews_corrcoef
+from sklearn.metrics import matthews_corrcoef, f1_score, accuracy_score
 
 def download_glue(metadata_file="glue_metadata.yaml", data_dir="glue"):
     if not os.path.exists(data_dir):
