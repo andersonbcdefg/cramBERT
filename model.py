@@ -128,16 +128,17 @@ class BERT(nn.Module):
         X = self.emb_dropout(X)
         for block in self.blocks:
             X = block(X, mask=mask)
-        logits = self.fc(self.norm(X))
+        
 
         if targets is not None:
+            logits = self.fc(self.norm(X))
             loss = F.cross_entropy(
                 torch.flatten(logits, start_dim=0, end_dim=1), 
                 torch.flatten(targets)
             )
             return loss
         else:
-            return logits
+            return X
 
 class HuggingFaceRoBERTa(nn.Module):
     def __init__(self, config: BERTConfig):

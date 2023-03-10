@@ -18,63 +18,9 @@ import pandas as pd
 import numpy as np
 import yaml
 from data import load_tokenizer
-
-@dataclass
-class FinetuneConfig:
-    tasks: list
-    num_epochs: int
-    batch_size: int
-    learning_rate: float
-    dropout: float
-
-class FineTuneDataset(torch.utils.data.Dataset):
-    def __init__(self, sentence1s, sentence2s, labels, num_classes, tokenizer, max_len=128):
-        self.sentence1s = sentence1s
-        self.sentence2s = sentence2s
-        self.labels = labels
-        self.tokenizer = tokenizer
-        self.max_len = max_len
-        self.num_classes = num_classes
-    
-    def __len__(self):
-        return len(self.labels)
-    
-    def __getitem__(self, idx):
-        input_ids = self.tokenizer(self.sentence1s[idx], max_length=self.max_len, padding=False)['input_ids']
-        if self.sentence2s is not None:
-            input_ids.extend(self.tokenizer.sep_token_id)
-            input_ids.extend(self.tokenizer(self.sentence2s[idx], max_length=self.max_len, padding=False)['input_ids'])
-        input_ids.extend(self.tokenizer.sep_token_id)
-        # truncate if too long
-        input_ids = input_ids[:self.max_len]
-        # pad if too short
-        input_ids.extend([self.tokenizer.pad_token_id] * (self.max_len - len(input_ids)))
-        attention_mask = [1 if token != self.tokenizer.pad_token_id else 0 for token in input_ids]
-        label = self.labels[idx]
-        if self.num_classes == 1:
-            label = torch.tensor(label, dtype=torch.float)
-        else:
-            label = torch.tensor(label, dtype=torch.long)
-        return {
-            'input_ids': torch.tensor(input_ids, dtype=torch.long),
-            'attention_mask': torch.tensor(attention_mask, dtype=torch.bool),
-            'label': label
-        }
-
-
-
-# Supports binary, multiclass, and regression tasks
-class BERTForFineTuning(nn.Module):
-    def __init__(self, bert, num_classes, dropout=0.1):
-        super().__init__()
-        self.bert = bert
-        self.dropout = nn.Dropout(dropout)
-        self.output_head = nn.Linear(bert.config.hidden_size, num_classes)
-    def forward(self, input_ids, attention_mask):
-        outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask) # (bsz, seq_len, hidden_size)
-        pooled = torch.mean(outputs, dim=1) # (bsz, hidden_size)
-        logits = self.classifier(self.dropout(pooled_output)) # (bsz, num_classes)
-        return logits
+from finetune import FineTuneDataset, BERTForFineTuning, FineTuneConfig
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 def download_glue(metadata_file="glue_metadata.yaml", data_dir="glue"):
     metadata = yaml.safe_load(open(metadata_file, 'r'))
@@ -223,47 +169,84 @@ def test_load_data():
                     metadata['num_classes'][task], tokenizer, max_len=128)
                 print(f"Loaded {len(dataset)} examples")
 
-def finetune_and_eval(base_model, task, finetune_config, glue_metadata):
-    # Load data
+def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokenizer):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     train_sentence1s, train_sentence2s, train_labels = load_task(task, glue_metadata, split="train")
     train_dataset = FineTuneDataset(train_sentence1s, train_sentence2s, train_labels, 
             glue_metadata['num_classes'][task], tokenizer, max_len=128)
-    train_dataloader = DataLoader(train_dataset, batch_size=finetune_config['batch_size'], shuffle=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=finetune_config.batch_size, shuffle=True)
     if task != "MNLI":
         dev_sentence1s, dev_sentence2s, dev_labels = load_task(task, glue_metadata, split="dev")
         dev_dataset = FineTuneDataset(dev_sentence1s, dev_sentence2s, dev_labels,
             glue_metadata['num_classes'][task], tokenizer, max_len=128)
-        dev_dataloader = DataLoader(dev_dataset, batch_size=finetune_config['batch_size'], shuffle=False)
+        dev_dataloader = DataLoader(dev_dataset, batch_size=finetune_config.batch_size, shuffle=False)
     else:
         dev_matched_sentence1s, dev_matched_sentence2s, dev_matched_labels = load_task(task, glue_metadata, split="dev_matched")
         dev_matched_dataset = FineTuneDataset(dev_matched_sentence1s, dev_matched_sentence2s, dev_matched_labels,
             glue_metadata['num_classes'][task], tokenizer, max_len=128)
-        dev_matched_dataloader = DataLoader(dev_matched_dataset, batch_size=finetune_config['batch_size'], shuffle=False)
+        dev_matched_dataloader = DataLoader(dev_matched_dataset, batch_size=finetune_config.batch_size, shuffle=False)
         dev_mismatched_sentence1s, dev_mismatched_sentence2s, dev_mismatched_labels = load_task(task, glue_metadata, split="dev_mismatched")
         dev_mismatched_dataset = FineTuneDataset(dev_mismatched_sentence1s, dev_mismatched_sentence2s, dev_mismatched_labels,
             glue_metadata['num_classes'][task], tokenizer, max_len=128)
-        dev_mismatched_dataloader = DataLoader(dev_mismatched_dataset, batch_size=finetune_config['batch_size'], shuffle=False)
-    
+        dev_mismatched_dataloader = DataLoader(dev_mismatched_dataset, batch_size=finetune_config.batch_size, shuffle=False)
     
     # If configs are paths, load them from yaml
+    if isinstance(finetune_config, str):
+        finetune_config = FineTuneConfig.from_yaml(finetune_config)
+    if isinstance(model_config, str):
+        model_config = BERTConfig.from_yaml(model_config)
 
+    # Create base model & fine-tuning model
+    if finetune_config.dropout != model_config.dropout:
+        print("Warning: finetune_config.dropout != model_config.dropout, using finetune_config.dropout")
+        model_config.dropout = finetune_config.dropout
+    base_model = BERT(model_config)
+    model = BERTForFineTuning(base_model, glue_metadata['num_classes'][task], dropout=finetune_config.dropout)
 
-def run_glue(model_config, finetune_config):
-    # Load model from config
-
-    # Get optimizer and scheduler
+    # Create optimizer and scheduler
+    optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_config.lr, weight_decay=finetune_config.weight_decay)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=finetune_config.lr, 
+        steps_per_epoch=len(train_dataloader), epochs=finetune_config.num_epochs, pct_start=0.1)
 
     # Train model
+    print("Training!")
+    model.train()
+    for epoch in range(finetune_config.num_epochs):
+        print(f"Epoch {epoch+1}/{finetune_config.num_epochs}")
+        for x, y, mask in tqdm(train_dataloader):
+            x, y, mask = x.to(device), y.to(device), mask.to(device)
+            optimizer.zero_grad(set_to_none=True)
+            loss = model(x, y, mask)
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
 
     # Evaluate model
+    print("Evaluating!")
+    model.eval()
+    if task != "MNLI":
+        dev_preds = []
+        dev_labels = []
+        for x, y, mask in tqdm(dev_dataloader):
+            x, y, mask = x.to(device), y.to(device), mask.to(device)
+            with torch.no_grad():
+                logits = model(x, mask)
+            dev_preds.extend(logits.argmax(dim=-1).cpu().numpy().tolist())
+            dev_labels.extend(y.cpu().numpy().tolist())
+        dev_acc = accuracy_score(dev_labels, dev_preds)
+        print(f"Dev accuracy: {dev_acc}")
+    
+def run_glue(model_config, finetune_config):
+    # download glue if it doesn't exist
+    if not os.path.exists("glue") or not os.path.exists("glue/CoLA"):
+        download_glue()
+    tokenizer = load_tokenizer()
+    if isinstance(finetune_config, str):
+        finetune_config = FineTuneConfig.from_yaml(finetune_config)
+    glue_metadata = yaml.safe_load(open("glue_metadata.yaml", 'r'))
 
-# Load model from checkpoint
-
-# Get optimizer and scheduler
-
-# Train model
-
-# Evaluate model
+    for task in finetune_config.tasks:
+        finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokenizer)
 
 if __name__ == "__main__":
-    fire.Fire(test_load_data)
+    fire.Fire(run_glue)

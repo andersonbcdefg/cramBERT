@@ -1,0 +1,13 @@
+tasks:
+  - CoLA
+  - SST-2
+  - QQP
+  - STS-B
+  - MNLI
+  - QNLI
+  - RTE
+num_epochs: 5
+batch_size: 32
+lr: 1.0e-5
+weight_decay: 0.01
+dropout: 0.1
