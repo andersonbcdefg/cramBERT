@@ -254,7 +254,7 @@ def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokeni
             x, y, mask = x.to(device), y.to(device), mask.to(device)
             optimizer.zero_grad(set_to_none=True)
             loss = model(x, y, mask)
-            if step % 10 == 0:
+            if step % 25 == 0:
                 print(f"Step {step}, loss: {loss.item()}")
             loss.backward()
             optimizer.step()
