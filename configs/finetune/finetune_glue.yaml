@@ -9,7 +9,7 @@ tasks:
 metadata_file: "/content/cramBERT/glue_metadata.yaml"
 tokenizer_path: "/content/cramBERT/webtext/tokenizer.json"
 num_epochs: 5
-batch_size: 32
+batch_size: 16
 lr: 1.0e-5
 weight_decay: 0.01
 dropout: 0.1
