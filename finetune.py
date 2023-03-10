@@ -69,7 +69,6 @@ class BERTForFineTuning(nn.Module):
         self.output_head = nn.Linear(bert.d_model, num_classes)
     def forward(self, input_ids, targets, attention_mask):
         outputs = self.bert(input_ids, mask=attention_mask) # (bsz, seq_len, hidden_size)
-        print("output_shape:", outputs.shape)
         pooled = torch.mean(outputs, dim=1) # (bsz, hidden_size)
         logits = self.output_head(self.dropout(pooled)) # (bsz, num_classes)
         loss = torch.nn.functional.cross_entropy(logits, targets)

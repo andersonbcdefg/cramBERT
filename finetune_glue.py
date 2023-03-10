@@ -172,6 +172,7 @@ def test_load_data():
                 print(f"Loaded {len(dataset)} examples")
 
 def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokenizer):
+    print(f"Finetuning {task}...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     train_sentence1s, train_sentence2s, train_labels = load_task(task, glue_metadata, split="train")
     train_dataset = FineTuneDataset(train_sentence1s, train_sentence2s, train_labels, 
@@ -215,12 +216,16 @@ def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokeni
     # Train model
     print("Training!")
     model.train()
+    step = 0
     for epoch in range(finetune_config.num_epochs):
         print(f"Epoch {epoch+1}/{finetune_config.num_epochs}")
-        for x, y, mask in tqdm(train_dataloader):
+        for x, y, mask in train_dataloader:
+            step += 1
             x, y, mask = x.to(device), y.to(device), mask.to(device)
             optimizer.zero_grad(set_to_none=True)
             loss = model(x, y, mask)
+            if step % 10 == 0:
+                print(f"Step {step}, loss: {loss.item()}")
             loss.backward()
             optimizer.step()
             scheduler.step()

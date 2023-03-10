@@ -128,7 +128,6 @@ class BERT(nn.Module):
         X = self.emb_dropout(X)
         for block in self.blocks:
             X = block(X, mask=mask)
-        
 
         if targets is not None:
             logits = self.fc(self.norm(X))
