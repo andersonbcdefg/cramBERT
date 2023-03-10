@@ -11,3 +11,4 @@ batch_size: 32
 lr: 1.0e-5
 weight_decay: 0.01
 dropout: 0.1
+checkpoint_path: "/content/drive/MyDrive/cramBERT/model_checkpoints/32000.pt"

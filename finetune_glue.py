@@ -201,6 +201,7 @@ def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokeni
         print("Warning: finetune_config.dropout != model_config.dropout, using finetune_config.dropout")
         model_config.dropout = finetune_config.dropout
     base_model = BERT(model_config)
+    base_model.load_weights_from_checkpoint(finetune_config.checkpoint_path)
     model = BERTForFineTuning(base_model, glue_metadata['num_classes'][task], dropout=finetune_config.dropout)
 
     # Create optimizer and scheduler
