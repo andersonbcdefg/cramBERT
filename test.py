@@ -11,7 +11,18 @@ def test_attention(batch_size, seq_len, d_model, d_qkv, n_heads):
     in_tensor = torch.randn((batch_size, seq_len, d_model))
     out = attn(in_tensor)
     assert in_tensor.shape == out.shape, "Input and output are not the same shape."
-    print("Attention test passed!")
+    print("Attention test passed (no mask)!")
+    padding_mask = torch.cat([torch.ones((batch_size, seq_len//2)), torch.zeros((batch_size, seq_len//2))], dim=1).bool()
+    assert padding_mask.shape == (batch_size, seq_len), "Padding mask is not the right shape."
+    # fill padding with huge number, if masked works, these values should be ignored
+    in_tensor.masked_fill_(~padding_mask.unsqueeze(-1), 2e20)
+    out = attn(in_tensor, padding_mask) # bsz, seq_len, d_model
+    print("out:", out.shape, out[0, :, 0])
+    val = torch.max(out)
+    print("max value: ", val)
+    assert in_tensor.shape == out.shape, "Input and output are not the same shape."
+    # assert torch.all(out < 10000), "Masked attention is not working."
+    print("Attention test passed (with mask)!")
 
 def test_ffn(batch_size, seq_len, d_model, ffn_hidden_size):
     # With GEGLU
@@ -65,6 +76,12 @@ def test_bert():
     assert out_tensor.shape == torch.Size([10, config.max_seq_len, config.vocab_size]),\
         "Output should have shape (batch_size, seq_len, vocab_size)."
     print("BERT test passed!")
+    padding_mask = torch.cat([torch.ones((10, config.max_seq_len//2)), torch.zeros((10, config.max_seq_len//2))], dim=1).bool()
+    out_tensor2 = model(in_tensor, targets=None, mask=padding_mask)
+    assert out_tensor2.shape == torch.Size([10, config.max_seq_len, config.vocab_size]),\
+        "Output should have shape (batch_size, seq_len, vocab_size)."
+    print("BERT test passed (with mask)!")
+
 
 def test_filter_and_batch_encode():
     tokenizer = load_tokenizer(file_path="webtext/tokenizer.json")

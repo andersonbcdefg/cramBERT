@@ -22,8 +22,8 @@ class PreNormAndAdd(nn.Module):
         self.norm = LayerNorm(d_model, bias=False)
         self.sublayer = sublayer
     
-    def forward(self, X):
-        return X + self.sublayer(self.norm(X))
+    def forward(self, X, **kwargs):
+        return X + self.sublayer(self.norm(X), **kwargs)
 
 class Attention(nn.Module):
     def __init__(self, d_model, d_qkv, n_heads, dropout=0.0):
@@ -42,6 +42,7 @@ class Attention(nn.Module):
         q, k, v = self.to_qkv(X).view(b, s, self.n_heads, self.d_qkv, 3).unbind(dim=-1)
         attn_scores = q.transpose(1, 2) @ k.permute((0, 2, 3, 1)) / self.scale
         if mask is not None:
+            # print("mask is not None")
             # Fill padding with -inf
             # Mask is shape (b, s) and attn_scores is shape (b, n_heads, s, s)
             # We need to unsqueeze mask to shape (b, 1, 1, s) and fill where mask is 0 
@@ -49,7 +50,12 @@ class Attention(nn.Module):
             mask = mask.unsqueeze(1).unsqueeze(1)
             attn_scores.masked_fill_(~mask, float('-inf'))
         attn_weights = self.attn_dropout(F.softmax(attn_scores, dim=-1))
+        # print("weights:", attn_weights[0, 0, :, :])
+        # v_transp = v.transpose(1, 2)
+        # print("v_transp (s * d_qkv):", v_transp[0, 0, :, :])
         attn_out = attn_weights @ v.transpose(1, 2)
+        
+        # print(attn_out[0, 0, :, :]) # b, nh, s, d_qkv
         return self.out_dropout(self.out_proj(attn_out.transpose(1, 2).flatten(-2)))
 
 class FFN(nn.Module):
