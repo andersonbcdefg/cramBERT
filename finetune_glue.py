@@ -237,7 +237,7 @@ def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokeni
     if task != "MNLI":
         dev_preds = []
         dev_labels = []
-        for x, y, mask in tqdm(dev_dataloader):
+        for x, y, mask in dev_dataloader:
             x, y, mask = x.to(device), y.to(device), mask.to(device)
             with torch.no_grad():
                 logits = model(x, y, mask)
