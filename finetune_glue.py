@@ -22,6 +22,7 @@ from finetune import FineTuneDataset, BERTForFineTuning, FineTuneConfig
 from torch.utils.data import DataLoader
 from sklearn.metrics import matthews_corrcoef, f1_score, accuracy_score
 from scipy.stats import pearsonr, spearmanr
+import wandb
 
 def download_glue(metadata_file="glue_metadata.yaml", data_dir="glue"):
     if not os.path.exists(data_dir):
@@ -200,6 +201,9 @@ def eval_model(model, dataloader, num_classes, metrics):
         result["pearson"] = pearsonr(labels, preds)[0]
     if "spearman" in metrics:
         result["spearman"] = spearmanr(labels, preds)[0]
+    wandb.log({
+        "dev-" + metric: result[metric] for metric in result
+    })
     return result
 
 def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokenizer):
@@ -230,6 +234,12 @@ def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokeni
     if isinstance(model_config, str):
         model_config = BERTConfig.from_yaml(model_config)
 
+    # Initialize wandb
+    wandb.init(
+        project="cramming-finetune-" + task,
+        config={"ft-config":finetune_config, "model-config":model_config}
+    )
+
     # Create base model & fine-tuning model
     if finetune_config.dropout != model_config.dropout:
         print("Warning: finetune_config.dropout != model_config.dropout, using finetune_config.dropout")
@@ -255,6 +265,7 @@ def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokeni
             x, y, mask = x.to(device), y.to(device), mask.to(device)
             optimizer.zero_grad(set_to_none=True)
             loss = model(x, y, mask)
+            wandb.log({"train-loss": loss.item()})
             if step % 25 == 0:
                 print(f"Step {step}, loss: {loss.item()}")
             loss.backward()
@@ -267,6 +278,7 @@ def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokeni
             result_matched = eval_model(model, dev_matched_dataloader, glue_metadata['num_classes'][task], metrics=glue_metadata['metrics'][task])
             result_mismatched = eval_model(model, dev_mismatched_dataloader, glue_metadata['num_classes'][task], metrics=glue_metadata['metrics'][task])
             print(f"Dev {task} results after {epoch + 1} epochs:\n{result_matched}\n{result_mismatched}")
+    wandb.finish()
 
     
     
