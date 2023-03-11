@@ -266,7 +266,7 @@ def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokeni
             optimizer.zero_grad(set_to_none=True)
             loss = model(x, y, mask)
             wandb.log({"train-loss": loss.item()})
-            if step % 25 == 0:
+            if step % 100 == 0:
                 print(f"Step {step}, loss: {loss.item()}")
             loss.backward()
             optimizer.step()
