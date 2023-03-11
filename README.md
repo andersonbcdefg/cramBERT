@@ -44,8 +44,8 @@ Note that the original BERT paper only fine-tuned for 3 epochs.
 | Original BERT-large | 60.5 | 94.9 | 72.1 | 86.5 | 86.7/85.9 | 92.7 | 70.1 |
 | RoBERTa | 67.8 | 96.7 | 90.2 | 92.2 | 90.8/90.2 | 98.9 | 88.2 |
 | Best Crammed BERT | 44.5 | 92.2 | 87.3 | 84.6 | 83.9/84.1 | 89.5 | 53.8 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
 | My Crammed BERT |
+
 So far, I've achieved a MLM loss of around 1.9! I plan to fine-tune and evaluate the model on a few downstream tasks to gauge how well it performs there. I'll update this section as I make progress.
 
 ## References

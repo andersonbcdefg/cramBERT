@@ -75,5 +75,8 @@ class BERTForFineTuning(nn.Module):
         logits = self.output_head(self.dropout(pooled)) # (bsz, num_classes)
         if targets is None:
             return logits
-        loss = torch.nn.functional.cross_entropy(logits, targets)
+        if self.output_head.out_features == 1:
+            loss = torch.nn.functional.mse_loss(logits.squeeze(), targets)
+        else:
+            loss = torch.nn.functional.cross_entropy(logits, targets)
         return loss
