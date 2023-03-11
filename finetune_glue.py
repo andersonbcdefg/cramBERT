@@ -252,7 +252,7 @@ def finetune_and_eval(model_config, task, finetune_config, glue_metadata, tokeni
     # Create optimizer and scheduler
     optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_config.lr, weight_decay=finetune_config.weight_decay)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=finetune_config.lr, 
-        steps_per_epoch=len(train_dataloader), epochs=finetune_config.num_epochs, pct_start=0.1)
+        steps_per_epoch=len(train_dataloader), epochs=finetune_config.num_epochs, pct_start=0.0)
 
     # Train model
     print("Training!")
