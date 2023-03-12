@@ -44,6 +44,7 @@ Note that the original BERT paper only fine-tuned for 3 epochs, and reported res
 | Original BERT-large (GLUE test) | 60.5 | 94.9 | 72.1 | 86.5 | 86.7/85.9 | 92.7 | 70.1 |
 | RoBERTa (GLUE test) | 67.8 | 96.7 | 90.2 | 92.2 | 90.8/90.2 | 98.9 | 88.2 |
 ---
+
 | Cramming Paper, BERT-base, no pretrain (GLUE dev) | 0.0 | 79.9 | 68.6 | 17.8 | 34.1/34.1 | 50.0 | 47.3 |
 | Cramming Paper, Fully Trained BERT-base (GLUE dev) | 56.5 | 91.9 | 87.7 | 86.7 | 83.2/83.4 | 90.6 | 59.2 |
 | Cramming Paper, Crammed BERT-base (GLUE dev) | 44.5 | 92.2 | 87.3 | 84.6 | 83.9/84.1 | 89.5 | 53.8 |
