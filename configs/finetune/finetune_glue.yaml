@@ -1,8 +1,8 @@
 tasks:
-  - STS-B
-  - CoLA
-  - SST-2
-  - QQP
+  # - STS-B
+  # - CoLA
+  # - SST-2
+  # - QQP
   - MNLI
   - QNLI
   - RTE
