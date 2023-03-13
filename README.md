@@ -1,9 +1,6 @@
 # cramBERT
 This repository contains my implementation of the BERT architecture and training, including the data pipeline to train on the OpenWebText2 dataset. I was inspired to carry out this project by recent work on efficient, low-budget BERT training. I came across the "Cramming paper" ([Cramming: Training a Language Model on a Single GPU in One Day](https://arxiv.org/abs/2212.14034)), and was impressed how much performance they could get out of a BERT that they trained for just 24 hours on low-end hardware. They also managed to test lots of trendy architecture and training modifications along the way, and so their paper is the perfect guide to training a BERT with all the bells and whistles. I took this paper as my starting point to train a BERT that I can call my very own! In my case, I'm training on a single A100 in Google Colab, which is a bit nicer and faster than what the authors had access to, but it supports a similar sort of minimalist, scarcity-mindset training setup.
 
-## Current Progress (3/1/2023)
-So far, I've managed to train BERT with the MLM loss objective to a reasonable loss of around 1.7 with 10 billion tokens, which is solid (slightly better loss than the Cramming paper, but the loss shouldn't be directly compared since I use a different tokenization scheme.)
-
 ## Data and Preprocessing
 I train and validate the model using the OpenWebText2 dataset, an open-source reproduction of OpenAI's WebText dataset by EleutherAI, which is a subset of the larger Pile dataset. The Cramming authors experiment with several corpuses, including BookCorpus-Wikipedia, C4, and The Pile—I decided to stick with just one solid dataset. OpenWebText2 comprises over 17 million scraped documents, totaling around 65GB of uncompressed text. The dataset and code are available [here](https://github.com/EleutherAI/openwebtext2), along with preprocessing utilities. I directly borrowed some of this code to load the dataset from JSONL archives. It is licensed under the [MIT License](https://github.com/EleutherAI/openwebtext2/blob/master/LICENSE).
 
@@ -33,25 +30,36 @@ I drop the next-sentence prediction objective from the original BERT paper, and 
 * I did not find the one-cycle learning rate schedule from the Cramming paper to work right out of the box. The simplicity of the one-cycle learning rate (see [Smith & Topin, 2017](https://arxiv.org/abs/1708.07120)) appealed to me, but the suggested maximum learning rate of 1e-3 caused my model to diverge during training (in fact, it never reaches that learning rate). I had to use a much lower maximum learning rate of 2e-4. Maybe the training data is noisier in my setting, because I keep all the accents and special characters and such. This may require a smaller learning rate. Rather than warming up for half of the token budget and annealing for the second half, I follow Iszak et al. and warm up for 10% of the token budget and anneal for the remaining 90%.
 * Finally, I used PyTorch's automatic mixed precision utilities to train in (mostly) `fp16`, which saves memory, allowing me to go from a microbatch size of 128 to 256. It was tough to get all the pieces of this right (make sure you unscale the gradients before you clip them, folks!) but it was definitely worth it, and not as hard as it sounds.
 
-## Finetuning on GLUE
-I fine-tune on a subset of GLUE tasks that includes CoLA, SST-2, QQP, STS-B, MNLI, QNLI, and RTE. Following the Cramming paper, I restrict myself to a global hyperparameter setting for all downstream tasks (rather than tuning for each task separately), and fine-tune for 5 epochs on each task. I use a batch size of 16, an initial learning rate of 1.0e-4, and a cosine decay schedule. Dropout of 0.1 is used for fine-tuning. 
+## Results — MLM Loss
+After training on close to 10 billion tokens (which is how much the Cramming paper managed to train on in 24 hours—it took me a bit less time than that), my BERT model reached a MLM loss of I've managed to train BERT with the MLM loss objective to a training loss of 1.74, and a validation loss of 1.75 (roughly equal because I don't re-use data). This is better than the ~1.85 MLM loss achieved in the Cramming paper, but shouldn't be directly compared due to different data, preprocessing, and tokenization. As you'll see, the downstream results on GLUE are worse overall, which I'll speculate about below.
 
-Note that the original BERT paper only fine-tuned for 3 epochs, and reported results on the GLUE test set, rather than the development set. Values are provided for comparison, but don't read into it too much.
+## Results – Fine-tuning on GLUE
+I fine-tune on a subset of GLUE tasks that includes CoLA, SST-2, QQP, STS-B, MNLI, QNLI, and RTE. Following the Cramming paper, I restrict myself to a global hyperparameter setting for all downstream tasks (rather than tuning for each task separately), and fine-tune for 5 epochs on each task. I use the same batch size of 16, initial learning rate of 1.0e-4, and cosine decay schedule. Dropout of 0.1 is used for fine-tuning. I report the GLUE-dev results from the best epoch (not necessarily the last, as overfitting may occur for some tasks).
+
+In the table below, I compare these results to the original BERT results, RoBERTa, and some models from the Cramming paper. Note that the original BERT paper only fine-tuned for 3 epochs, and reported results on the GLUE test set, rather than the development set. In addition to the original BERT and RoBERTa results, I report results from the Cramming paper, including (a) a BERT-base with no pre-training fine-tuned for up to 5 epochs; (b) a fully-pretrained BERT-base checkpoint fine-tuned for up to 5 epochs; and (c) the best "crammed" BERT fine-tuned for up to 5 epochs.
 
 | Model | CoLA | SST-2 | QQP | STS-B | MNLI-(m/mm) | QNLI | RTE | Average |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Original BERT-base (GLUE test) | 52.1 | 93.5 | 71.2 | 85.8 | 84.6/83.4 | 90.5 | 66.4 | --- |
-| Original BERT-large (GLUE test) | 60.5 | 94.9 | 72.1 | 86.5 | 86.7/85.9 | 92.7 | 70.1 | --- |
-| RoBERTa (GLUE test) | 67.8 | 96.7 | 90.2 | 92.2 | 90.8/90.2 | 98.9 | 88.2 | --- |
-| Cramming Paper, BERT-base, no pretrain (GLUE dev) | 0.0 | 79.9 | 68.6 | 17.8 | 34.1/34.1 | 50.0 | 47.3 | --- |
-| Cramming Paper, Fully Trained BERT-base (GLUE dev) | 56.5 | 91.9 | 87.7 | 86.7 | 83.2/83.4 | 90.6 | 59.2 | --- |
-| Cramming Paper, Crammed BERT-base (GLUE dev) | 44.5 | 92.2 | 87.3 | 84.6 | 83.9/84.1 | 89.5 | 53.8 | --- |
-| My Crammed BERT-base (GLUE dev) | 18.4 | 90.3 | 79.9 | 83.1 | 78.7/78.8 | 87.1 | 60.3 | --- |
+| Original BERT-base (GLUE test) | 52.1 | 93.5 | 71.2 | 85.8 | 84.6/83.4 | 90.5 | 66.4 | 78.4 |
+| Original BERT-large (GLUE test) | 60.5 | 94.9 | 72.1 | 86.5 | 86.7/85.9 | 92.7 | 70.1 | 81.2 |
+| RoBERTa (GLUE test) | 67.8 | 96.7 | 90.2 | 92.2 | 90.8/90.2 | 98.9 | 88.2 | 89.4 |
+| Cramming Paper, BERT-base, no pretrain (GLUE dev) | 0.0 | 79.9 | 68.6 | 17.8 | 34.1/34.1 | 50.0 | 47.3 | 41.5 |
+| Cramming Paper, Fully Trained BERT-base (GLUE dev) | 56.5 | 91.9 | 87.7 | 86.7 | 83.2/83.4 | 90.6 | 59.2 | 79.9 |
+| Cramming Paper, Crammed BERT-base (GLUE dev) | 44.5 | 92.2 | 87.3 | 84.6 | 83.9/84.1 | 89.5 | 53.8 | 77.5 |
+| My Crammed BERT-base (GLUE dev) | 18.4 | 90.3 | 79.9 | 83.1 | 78.7/78.8 | 87.1 | 60.3 | 72.1 |
 
-So far, I've achieved a MLM loss of around 1.9! I plan to fine-tune and evaluate the model on a few downstream tasks to gauge how well it performs there. I'll update this section as I make progress.
+The performance of my crammed BERT is not too shabby–a little bit worse than the Cramming paper, but better on some tasks, and miles ahead of a BERT with no pre-training. I suspect that the worse performance can be attributed to my setup: I made pretraining more complicated by not lower-casing everything, stripping out accents, etc. I also trained on only OpenWebText2, which is sort of out-of-distribution for GLUE. I'd expect that this leads to a model that a better-equipped generalist for understanding arbitrary internet text, but less well-suited for NLP benchmarks than a model trained on simpler text from books, news articles, and Wikipedia.
 
 ## References
-Links are in the text above. I'll put a full bibliography here when I get a chance.
+[1] J. Geiping and T. Goldstein, “Cramming: Training a Language Model on a Single GPU in One Day,” arXiv:2212.14034 [cs.CL], Dec. 2022
+[2] EleutherAI, “openwebtext2,” GitHub, 2022. [Online]. Available: https://github.com/EleutherAI/openwebtext2.
+[3] J. Rae et al. "Scaling language models: Methods, analysis & insights from training gopher." arXiv:2112.11446 [cs.CL], 2021.
+[4] J. Devlin, M. Chang, K. Lee, and K. Toutanova, “BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding,” arXiv:1810.04805 [cs.CL], Oct. 2018.
+[5] P. Izsak, M. Berchansky and O. Levy, “How to Train BERT with an Academic Budget,” arXiv:2104.07705 [cs.CL], Apr. 2021.
+[6] S. L. Smith, P.-J. Kindermans, C. Ying, and Q. V. Le, “Don’t Decay the Learning Rate, Increase the Batch Size,” arXiv:1711.00489 [cs.LG], Nov. 2017.
+[7] D. Loshchilov and F. Hutter, “Decoupled Weight Decay Regularization,” arXiv:1711.05101 [cs.LG], Nov. 2017.
+[8] T. Dettmers, M. Lewis, S. Shleifer, and L. Zettlemoyer, “8-bit Optimizers via Block-wise Quantization,” arXiv:2110.02861 [cs.LG], Oct. 2021.
+[9] L. N. Smith and N. Topin, “Super-Convergence: Very Fast Training of Neural Networks Using Large Learning Rates,” arXiv:1708.07120 [cs.LG], Aug. 2017.
 
 # Acknowledgments
-Special thanks to Jonas Geiping, an author of the Cramming paper who was exceptionally helpful and kind in answering my questions about the paper, code, and training details. I also owe thanks to Andrej Karpathy and Phil Wang (`lucidrains` on GitHub), whose clear Transformer implementations have been a huge help in understanding how to build one myself. I learned and borrowed so many tricks from reading their code—you should do the same!
+Special thanks to Jonas Geiping, an author of the Cramming paper who was exceptionally helpful and kind in answering my questions about the paper, code, and training details. I also owe thanks to Andrej Karpathy and Phil Wang (`lucidrains` on GitHub), whose clear Transformer implementations have been a huge help in understanding how to build one myself. I learned so many tricks from reading their code–it's a great way to find some "ghost knowledge" that isn't always front-and-center in famous papers.
