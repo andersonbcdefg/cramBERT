@@ -73,12 +73,12 @@ def test_bert():
     model.get_optim_groups(weight_decay=0.01)
     in_tensor = torch.randint(0, config.vocab_size, (10, config.max_seq_len))
     out_tensor = model(in_tensor)
-    assert out_tensor.shape == torch.Size([10, config.max_seq_len, config.vocab_size]),\
+    assert out_tensor.shape == torch.Size([10, config.max_seq_len, config.d_model]),\
         "Output should have shape (batch_size, seq_len, vocab_size)."
     print("BERT test passed!")
     padding_mask = torch.cat([torch.ones((10, config.max_seq_len//2)), torch.zeros((10, config.max_seq_len//2))], dim=1).bool()
     out_tensor2 = model(in_tensor, targets=None, mask=padding_mask)
-    assert out_tensor2.shape == torch.Size([10, config.max_seq_len, config.vocab_size]),\
+    assert out_tensor2.shape == torch.Size([10, config.max_seq_len, config.d_model]),\
         "Output should have shape (batch_size, seq_len, vocab_size)."
     print("BERT test passed (with mask)!")
 
