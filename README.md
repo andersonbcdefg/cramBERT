@@ -39,7 +39,7 @@ I fine-tune on a subset of GLUE tasks that includes CoLA, SST-2, QQP, STS-B, MNL
 Note that the original BERT paper only fine-tuned for 3 epochs, and reported results on the GLUE test set, rather than the development set. Values are provided for comparison, but don't read into it too much.
 
 | Model | CoLA | SST-2 | QQP | STS-B | MNLI-(m/mm) | QNLI | RTE | Average |
-| --- | --- | --- | --- | --- | --- | --- | --- |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Original BERT-base (GLUE test) | 52.1 | 93.5 | 71.2 | 85.8 | 84.6/83.4 | 90.5 | 66.4 | --- |
 | Original BERT-large (GLUE test) | 60.5 | 94.9 | 72.1 | 86.5 | 86.7/85.9 | 92.7 | 70.1 | --- |
 | RoBERTa (GLUE test) | 67.8 | 96.7 | 90.2 | 92.2 | 90.8/90.2 | 98.9 | 88.2 | --- |
