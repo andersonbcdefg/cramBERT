@@ -38,15 +38,15 @@ I fine-tune on a subset of GLUE tasks that includes CoLA, SST-2, QQP, STS-B, MNL
 
 Note that the original BERT paper only fine-tuned for 3 epochs, and reported results on the GLUE test set, rather than the development set. Values are provided for comparison, but don't read into it too much.
 
-| Model | CoLA | SST-2 | QQP | STS-B | MNLI-(m/mm) | QNLI | RTE |
+| Model | CoLA | SST-2 | QQP | STS-B | MNLI-(m/mm) | QNLI | RTE | Average |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Original BERT-base (GLUE test) | 52.1 | 93.5 | 71.2 | 85.8 | 84.6/83.4 | 90.5 | 66.4 |
-| Original BERT-large (GLUE test) | 60.5 | 94.9 | 72.1 | 86.5 | 86.7/85.9 | 92.7 | 70.1 |
-| RoBERTa (GLUE test) | 67.8 | 96.7 | 90.2 | 92.2 | 90.8/90.2 | 98.9 | 88.2 |
-| Cramming Paper, BERT-base, no pretrain (GLUE dev) | 0.0 | 79.9 | 68.6 | 17.8 | 34.1/34.1 | 50.0 | 47.3 |
-| Cramming Paper, Fully Trained BERT-base (GLUE dev) | 56.5 | 91.9 | 87.7 | 86.7 | 83.2/83.4 | 90.6 | 59.2 |
-| Cramming Paper, Crammed BERT-base (GLUE dev) | 44.5 | 92.2 | 87.3 | 84.6 | 83.9/84.1 | 89.5 | 53.8 |
-| My Crammed BERT-base (GLUE dev) | 18.4 | 90.3 | 79.9 | 83.1 | --/-- | -- | -- |
+| Original BERT-base (GLUE test) | 52.1 | 93.5 | 71.2 | 85.8 | 84.6/83.4 | 90.5 | 66.4 | --- |
+| Original BERT-large (GLUE test) | 60.5 | 94.9 | 72.1 | 86.5 | 86.7/85.9 | 92.7 | 70.1 | --- |
+| RoBERTa (GLUE test) | 67.8 | 96.7 | 90.2 | 92.2 | 90.8/90.2 | 98.9 | 88.2 | --- |
+| Cramming Paper, BERT-base, no pretrain (GLUE dev) | 0.0 | 79.9 | 68.6 | 17.8 | 34.1/34.1 | 50.0 | 47.3 | --- |
+| Cramming Paper, Fully Trained BERT-base (GLUE dev) | 56.5 | 91.9 | 87.7 | 86.7 | 83.2/83.4 | 90.6 | 59.2 | --- |
+| Cramming Paper, Crammed BERT-base (GLUE dev) | 44.5 | 92.2 | 87.3 | 84.6 | 83.9/84.1 | 89.5 | 53.8 | --- |
+| My Crammed BERT-base (GLUE dev) | 18.4 | 90.3 | 79.9 | 83.1 | 78.7/78.8 | 87.1 | 60.3 | --- |
 
 So far, I've achieved a MLM loss of around 1.9! I plan to fine-tune and evaluate the model on a few downstream tasks to gauge how well it performs there. I'll update this section as I make progress.
 
